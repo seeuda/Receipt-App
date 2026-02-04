@@ -1,0 +1,17 @@
+{
+    "country": "Denmark",
+    "currency_code": "DKK",
+    "decimal_separator": ",",
+    "keywords": [
+        "Total", "Ialt", "At betale", "Visa", "Payment due", 
+        "Dankort", "Kort", "BELØB", "Subtotal"
+    ],
+    "month_map": {
+        "Januar": "01", "Februar": "02", "Marts": "03", "April": "04", 
+        "Maj": "05", "Juni": "06", "Juli": "07", "August": "08", 
+        "September": "09", "Oktober": "10", "November": "11", "December": "12",
+        "Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04", 
+        "May": "05", "Jun": "06", "Jul": "07", "Aug": "08", 
+        "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"
+    }
+}

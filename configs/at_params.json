@@ -1,0 +1,7 @@
+{
+    "country": "Austria",
+    "currency_code": "EUR",
+    "decimal_separator": ",",
+    "keywords": ["Summe", "Gesamtbetrag", "Gesamt", "Endbetrag", "Zahlbetrag"],
+    "month_map": {"Jän":"01","Feb":"02","Mär":"03","Apr":"04","Mai":"05","Jun":"06","Jul":"07","Aug":"08","Sep":"09","Okt":"10","Nov":"11","Dez":"12"}
+}

@@ -1,0 +1,7 @@
+streamlit
+pandas
+gspread
+oauth2client
+google-cloud-vision
+yfinance
+Pillow

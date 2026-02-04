@@ -1,0 +1,7 @@
+{
+    "country": "Turkey",
+    "currency_code": "TRY",
+    "decimal_separator": ",",
+    "keywords": ["Toplam", "Genel Toplam", "Tutar", "Fiş Tutarı", "Ödenen"],
+    "month_map": {"Oca":"01","Şub":"02","Mar":"03","Nis":"04","May":"05","Haz":"06","Tem":"07","Ağu":"08","Eyl":"09","Eki":"10","Kas":"11","Ara":"12"}
+}
