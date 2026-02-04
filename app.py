@@ -2,11 +2,11 @@ import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2 import service_account
-import io, os, glob, re, json, yfinance as yf
-from datetime import datetime, timedelta
+import io, os, glob, re, json
+from datetime import datetime
 from google.cloud import vision
 
-# --- 1. 核心解析邏輯 ---
+# --- 1. 核心邏輯 (擷取與處理) ---
 def load_all_configs():
     configs = {}
     for f in glob.glob("configs/*.json"):
@@ -43,7 +43,8 @@ def normalize_date_pro(text, month_map):
 def extract_data(text, params):
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     vendor = lines[0] if lines else "未知商店"
-    sep, curr = re.escape(params['decimal_separator']), params['currency_code'].upper()
+    sep = re.escape(params['decimal_separator'])
+    curr = params['currency_code'].upper()
     money_regex = rf'(\d+[{sep}]\d{{2}})[\s]*([A-Za-z]*)'
     candidates = []
     for i, line in enumerate(lines):
@@ -51,22 +52,17 @@ def extract_data(text, params):
             val = float(match.group(1).replace(params['decimal_separator'], '.'))
             score = (200 if re.search(r'Visa|Dankort|Ialt|Total|Payment', line, re.I) else 0)
             if curr in line.upper(): score += 100
-            if re.search(r'moms|tax|ant', line, re.I): score -= 180
             candidates.append({'val': val, 'score': score + (i/len(lines)*60)})
     return vendor, sorted(candidates, key=lambda x: x['score'], reverse=True)[0]['val'] if candidates else 0.0
 
-# --- 2. Google Sheets 同步功能 (ID 精確版) ---
 def sync_to_sheets(df, user_name, curr_code):
     try:
         creds_info = st.secrets["gcp_service_account"]
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         creds = service_account.Credentials.from_service_account_info(creds_info, scopes=scopes)
         gc = gspread.authorize(creds)
-        
-        # 使用你指定的試算表 ID
         sh = gc.open_by_key("1Aw7ti3Yadw9SJ1n6_WoEFU1SQrmDfIGQw6O0oeO_gUM")
         wks = sh.get_worksheet(0)
-        
         output_data = []
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         for _, row in df.iterrows():
@@ -75,57 +71,54 @@ def sync_to_sheets(df, user_name, curr_code):
                 row["外幣金額"], curr_code, row["匯率"], row["原始台幣"], row["手續費"], 
                 row["總計台幣"], row["備註"]
             ])
-        
         wks.append_rows(output_data, value_input_option='USER_ENTERED')
         return True
     except Exception as e:
-        if "200" in str(e): return True # 處理假報錯
-        st.error(f"同步至雲端失敗：{e}")
+        if "200" in str(e): return True
+        st.error(f"同步失敗：{e}")
         return False
 
-# --- 3. UI 介面設計 ---
-st.set_page_config(page_title="支出登錄統計系統", layout="wide")
+# --- 2. 網頁介面設計 ---
+st.set_page_config(page_title="支出登錄系統", layout="wide")
 st.title("📊 國外考察支出登錄統計系統")
 
-# 初始化 Session State (跨頁面記憶數據)
+# 初始化數據
 if 'data' not in st.session_state: st.session_state['data'] = []
 
-with st.sidebar:
-    st.header("👤 登錄人員設定")
-    user_options = load_users() + ["其他"]
-    sel_user = st.selectbox("選擇登錄者", user_options)
-    final_user = st.text_input("輸入姓名") if sel_user == "其他" else sel_user
-    
-    st.markdown("---")
-    configs = load_all_configs()
-    sel_config = st.selectbox("選擇考察國家", list(configs.keys()))
-    p = configs[sel_config]
-    manual_rate = st.number_input(f"當前匯率 ({p['currency_code']})", value=4.60, step=0.01)
-    fee_pct = st.number_input("手續費率 (%)", value=1.5, step=0.1) / 100
+# ⭐ 改良 1：將設定移出側欄，放在主頁頂端並設為「醒目提示」
+with st.expander("👤 步驟 1：登錄人員與匯率設定 (點此展開)", expanded=True):
+    c1, c2, c3 = st.columns([1, 1, 1])
+    with c1:
+        user_options = load_users() + ["其他"]
+        sel_user = st.selectbox("人員", user_options)
+        final_user = st.text_input("輸入姓名") if sel_user == "其他" else sel_user
+    with c2:
+        configs = load_all_configs()
+        sel_config = st.selectbox("考察國家", list(configs.keys()))
+        p = configs[sel_config]
+        manual_rate = st.number_input(f"匯率 ({p['currency_code']})", value=4.60, step=0.01)
+    with c3:
+        fee_pct = st.number_input("手續費率 (%)", value=1.5, step=0.1) / 100
+        if st.button("🗑️ 清空辨識結果"):
+            st.session_state['data'] = []
+            st.rerun()
 
-    if st.button("🗑️ 清空所有辨識結果", help="重新開始新的一批辨識"):
-        st.session_state['data'] = []
-        st.rerun()
-
-# --- 上傳與預覽區塊 ---
-st.subheader("📸 收據處理")
-files = st.file_uploader("批次上傳收據照片 (可多選)", accept_multiple_files=True, type=['jpg', 'jpeg', 'png'])
+# --- 上傳區塊 ---
+st.subheader("📸 步驟 2：上傳收據")
+files = st.file_uploader("可批次上傳", accept_multiple_files=True, type=['jpg', 'jpeg', 'png'])
 
 if files:
-    with st.expander("🖼️ 查看上傳收據預覽 (確認內容)", expanded=True):
-        cols = st.columns(5) # 每行顯示 5 張縮圖
+    with st.expander("🖼️ 預覽收據"):
+        cols = st.columns(5)
         for idx, f in enumerate(files):
-            with cols[idx % 5]:
-                st.image(f, use_container_width=True)
-                st.caption(f"📄 {f.name[:10]}...")
+            cols[idx % 5].image(f, use_container_width=True)
 
-    if st.button("🔍 開始執行 AI 批次辨識", type="primary", use_container_width=True):
+    if st.button("🔍 執行 AI 辨識", type="primary", use_container_width=True):
         new_batch = []
         try:
             creds_info = st.secrets["gcp_service_account"]
             vision_creds = service_account.Credentials.from_service_account_info(creds_info)
             client = vision.ImageAnnotatorClient(credentials=vision_creds)
-            
             prog = st.progress(0)
             for idx, f in enumerate(files):
                 content = f.read()
@@ -133,56 +126,52 @@ if files:
                 v, a = extract_data(res.full_text_annotation.text, p)
                 d = normalize_date_pro(res.full_text_annotation.text, p.get('month_map', {}))
                 new_batch.append({
-                    "商店名稱": v, "消費日期": d, "外幣金額": a, "匯率": manual_rate, 
-                    "參考品項": "", "備註": ""
+                    "商店名稱": v, "參考品項": "", "消費日期": d, "外幣金額": a, "匯率": manual_rate, "備註": ""
                 })
                 prog.progress((idx + 1) / len(files))
-            
-            st.session_state['data'] = new_batch # 覆蓋目前的 Session Data
-            st.success(f"✅ 成功辨識 {len(new_batch)} 張收據！")
+            st.session_state['data'] = new_batch
+            st.success("✅ 辨識完成！")
         except Exception as e: st.error(f"辨識出錯：{e}")
 
-# --- 數據編輯與同步區塊 ---
+# --- 數據確認與同步區塊 ---
 if st.session_state['data']:
     st.markdown("---")
+    st.subheader("📝 步驟 3：數據確認 (修改後金額將自動換算)")
+    
+    # 將 Session Data 轉為 DataFrame
     df = pd.DataFrame(st.session_state['data'])
-    
-    # 確保欄位名稱正確 (防止 Key 錯誤)
-    if "日期" in df.columns: df = df.rename(columns={"日期": "消費日期"})
-    if "商店" in df.columns: df = df.rename(columns={"商店": "商店名稱"})
-    
     df["消費日期"] = pd.to_datetime(df["消費日期"]).dt.date
-    
-    # 計算衍伸金額
-    df["原始台幣"] = (df["外幣金額"] * df["匯率"]).round(0)
-    df["手續費"] = (df["原始台幣"] * fee_pct).round(0)
-    df["總計台幣"] = df["原始台幣"] + df["手續費"]
-    
-    # 偵測重複項
-    is_dup = df.duplicated(subset=["商店名稱", "消費日期", "外幣金額"], keep=False)
-    if is_dup.any():
-        st.warning("⚠️ 偵測到「重複的收據內容」，請檢查下方表格。")
 
-    with st.expander("📝 數據確認與編輯清單", expanded=True):
-        col_order = ["商店名稱", "參考品項", "消費日期", "外幣金額", "匯率", "原始台幣", "手續費", "總計台幣", "備註"]
-        edited_df = st.data_editor(
-            df[col_order],
-            column_config={
-                "消費日期": st.column_config.DateColumn(),
-                "外幣金額": st.column_config.NumberColumn(format="%.2f"),
-                "原始台幣": st.column_config.NumberColumn(disabled=True),
-                "總計台幣": st.column_config.NumberColumn(disabled=True),
-            },
-            num_rows="dynamic", use_container_width=True
-        )
-        
-        c1, c2 = st.columns([1, 4])
-        with c1:
-            if st.button("📤 同步至 Google 試算表", type="primary"):
-                if sync_to_sheets(edited_df, final_user, p['currency_code']):
-                    st.toast("數據傳送成功！")
-                    st.balloons()
-                    st.session_state['data'] = [] # 同步成功後清空，防止重刷頁面造成重複寫入
-                    st.rerun() # 強制刷新畫面回歸乾淨狀態
-        with c2:
-            st.info(f"💰 本批次合計：{int(edited_df['總計台幣'].sum())} TWD")
+    # ⭐ 改良 2：動態連動計算邏輯
+    # 這裡顯示 data_editor，並捕捉任何修改
+    col_order = ["商店名稱", "參考品項", "消費日期", "外幣金額", "匯率", "備註"]
+    
+    edited_df = st.data_editor(
+        df[col_order],
+        column_config={
+            "消費日期": st.column_config.DateColumn(),
+            "外幣金額": st.column_config.NumberColumn(format="%.2f"),
+        },
+        num_rows="dynamic", use_container_width=True, key="editor"
+    )
+
+    # 關鍵：在顯示最終結果前，根據 edited_df 的最新數值進行「即時換算」
+    edited_df["原始台幣"] = (edited_df["外幣金額"] * edited_df["匯率"]).round(0)
+    edited_df["手續費"] = (edited_df["原始台幣"] * fee_pct).round(0)
+    edited_df["總計台幣"] = edited_df["原始台幣"] + edited_df["手續費"]
+
+    # 顯示即時計算結果
+    final_cols = ["商店名稱", "參考品項", "消費日期", "外幣金額", "匯率", "原始台幣", "手續費", "總計台幣", "備註"]
+    st.write("📊 **即時換算預覽：**")
+    st.dataframe(edited_df[final_cols], use_container_width=True)
+    
+    # 統計資訊
+    total_val = int(edited_df["總計台幣"].sum())
+    st.metric("本批總支出金額 (TWD)", f"{total_val:,} 元")
+
+    if st.button("📤 確認無誤，同步至雲端", type="primary", use_container_width=True):
+        if sync_to_sheets(edited_df, final_user, p['currency_code']):
+            st.toast("同步成功！")
+            st.balloons()
+            st.session_state['data'] = []
+            st.rerun()
