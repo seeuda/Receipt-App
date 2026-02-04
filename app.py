@@ -6,14 +6,26 @@ import io, os, glob, re, json
 from datetime import datetime
 from google.cloud import vision
 
-# --- 1. 核心邏輯 (擷取與處理) ---
+# --- 1. 核心邏輯 ---
+
+# 建立國家名稱映射表 (若未來有新國家，在此新增即可)
+COUNTRY_NAMES = {
+    "denmark": "🇩🇰 丹麥",
+    "japan": "🇯🇵 日本",
+    "usa": "🇺🇸 美國",
+    "germany": "🇩🇪 德國",
+    "taiwan": "🇹🇼 台灣"
+}
+
 def load_all_configs():
     configs = {}
     for f in glob.glob("configs/*.json"):
         if "users.json" in f: continue 
-        name = os.path.splitext(os.path.basename(f))[0]
+        filename = os.path.splitext(os.path.basename(f))[0]
+        # 優先顯示映射表中的中文，若無則顯示首字母大寫的檔名
+        display_name = COUNTRY_NAMES.get(filename, filename.capitalize())
         with open(f, 'r', encoding='utf-8') as j:
-            configs[name] = json.load(j)
+            configs[display_name] = json.load(j)
     return configs
 
 def load_users():
@@ -61,6 +73,7 @@ def sync_to_sheets(df, user_name, curr_code):
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         creds = service_account.Credentials.from_service_account_info(creds_info, scopes=scopes)
         gc = gspread.authorize(creds)
+        # 你的試算表 ID
         sh = gc.open_by_key("1Aw7ti3Yadw9SJ1n6_WoEFU1SQrmDfIGQw6O0oeO_gUM")
         wks = sh.get_worksheet(0)
         output_data = []
@@ -78,34 +91,34 @@ def sync_to_sheets(df, user_name, curr_code):
         st.error(f"同步失敗：{e}")
         return False
 
-# --- 2. 網頁介面設計 ---
+# --- 2. 網頁介面 ---
 st.set_page_config(page_title="支出登錄系統", layout="wide")
 st.title("📊 國外考察支出登錄統計系統")
 
-# 初始化數據
 if 'data' not in st.session_state: st.session_state['data'] = []
 
-# ⭐ 改良 1：將設定移出側欄，放在主頁頂端並設為「醒目提示」
-with st.expander("👤 步驟 1：登錄人員與匯率設定 (點此展開)", expanded=True):
+# --- 步驟 1：設定區 ---
+with st.expander("👤 步驟 1：基本設定與結果查看", expanded=True):
     c1, c2, c3 = st.columns([1, 1, 1])
     with c1:
         user_options = load_users() + ["其他"]
         sel_user = st.selectbox("人員", user_options)
-        final_user = st.text_input("輸入姓名") if sel_user == "其他" else sel_user
+        final_user = st.text_input("手寫姓名") if sel_user == "其他" else sel_user
     with c2:
         configs = load_all_configs()
-        sel_config = st.selectbox("考察國家", list(configs.keys()))
-        p = configs[sel_config]
-        manual_rate = st.number_input(f"匯率 ({p['currency_code']})", value=4.60, step=0.01)
+        # 此處會顯示「🇩🇰 丹麥」等中文名稱
+        sel_display = st.selectbox("考察國家", list(configs.keys()))
+        p = configs[sel_display]
+        manual_rate = st.number_input(f"參考匯率 ({p['currency_code']})", value=4.60, step=0.01)
     with c3:
         fee_pct = st.number_input("手續費率 (%)", value=1.5, step=0.1) / 100
-        if st.button("🗑️ 清空辨識結果"):
-            st.session_state['data'] = []
-            st.rerun()
+        # 新增：試算表連結按鈕
+        sheet_url = "https://docs.google.com/spreadsheets/d/1Aw7ti3Yadw9SJ1n6_WoEFU1SQrmDfIGQw6O0oeO_gUM/edit"
+        st.link_button("📂 打開試算表查看結果", sheet_url, use_container_width=True)
 
-# --- 上傳區塊 ---
+# --- 步驟 2：上傳區 ---
 st.subheader("📸 步驟 2：上傳收據")
-files = st.file_uploader("可批次上傳", accept_multiple_files=True, type=['jpg', 'jpeg', 'png'])
+files = st.file_uploader("批次上傳", accept_multiple_files=True, type=['jpg', 'jpeg', 'png'])
 
 if files:
     with st.expander("🖼️ 預覽收據"):
@@ -133,17 +146,14 @@ if files:
             st.success("✅ 辨識完成！")
         except Exception as e: st.error(f"辨識出錯：{e}")
 
-# --- 數據確認與同步區塊 ---
+# --- 步驟 3：確認與同步 ---
 if st.session_state['data']:
     st.markdown("---")
-    st.subheader("📝 步驟 3：數據確認 (修改後金額將自動換算)")
+    st.subheader("📝 步驟 3：數據確認 (手動修正外幣或匯率，下方將即時更新)")
     
-    # 將 Session Data 轉為 DataFrame
     df = pd.DataFrame(st.session_state['data'])
     df["消費日期"] = pd.to_datetime(df["消費日期"]).dt.date
 
-    # ⭐ 改良 2：動態連動計算邏輯
-    # 這裡顯示 data_editor，並捕捉任何修改
     col_order = ["商店名稱", "參考品項", "消費日期", "外幣金額", "匯率", "備註"]
     
     edited_df = st.data_editor(
@@ -155,21 +165,19 @@ if st.session_state['data']:
         num_rows="dynamic", use_container_width=True, key="editor"
     )
 
-    # 關鍵：在顯示最終結果前，根據 edited_df 的最新數值進行「即時換算」
+    # 即時計算
     edited_df["原始台幣"] = (edited_df["外幣金額"] * edited_df["匯率"]).round(0)
     edited_df["手續費"] = (edited_df["原始台幣"] * fee_pct).round(0)
     edited_df["總計台幣"] = edited_df["原始台幣"] + edited_df["手續費"]
 
-    # 顯示即時計算結果
-    final_cols = ["商店名稱", "參考品項", "消費日期", "外幣金額", "匯率", "原始台幣", "手續費", "總計台幣", "備註"]
     st.write("📊 **即時換算預覽：**")
+    final_cols = ["商店名稱", "參考品項", "消費日期", "外幣金額", "匯率", "原始台幣", "手續費", "總計台幣", "備註"]
     st.dataframe(edited_df[final_cols], use_container_width=True)
     
-    # 統計資訊
     total_val = int(edited_df["總計台幣"].sum())
     st.metric("本批總支出金額 (TWD)", f"{total_val:,} 元")
 
-    if st.button("📤 確認無誤，同步至雲端", type="primary", use_container_width=True):
+    if st.button("📤 同步至雲端", type="primary", use_container_width=True):
         if sync_to_sheets(edited_df, final_user, p['currency_code']):
             st.toast("同步成功！")
             st.balloons()
