@@ -8,26 +8,38 @@ from google.cloud import vision
 
 # --- 1. 核心邏輯 ---
 
-# 建立國家名稱映射表 (若未來有新國家，在此新增即可)
+# 建立國家名稱映射表 (對齊你 configs/ 裡的實際檔名)
 COUNTRY_NAMES = {
-    "denmark": "🇩🇰 丹麥",
-    "japan": "🇯🇵 日本",
-    "usa": "🇺🇸 美國",
-    "germany": "🇩🇪 德國",
-    "taiwan": "🇹🇼 台灣"
+    "dk_params": "🇩🇰 丹麥",
+    "es_params": "🇪🇸 西班牙",
+    "at_params": "🇦🇹 奧地利",
+    "cz_params": "🇨🇿 捷克",
+    "tr_params": "🇹🇷 土耳其",
+    "jp_params": "🇯🇵 日本",
+    "kr_params": "🇰🇷 南韓"
 }
 
 def load_all_configs():
     configs = {}
-    for f in glob.glob("configs/*.json"):
+    # 取得 configs 資料夾下所有 .json 檔案
+    files = glob.glob("configs/*.json")
+    
+    for f in files:
+        # 過濾掉人員清單
         if "users.json" in f: continue 
+        
+        # 取得不含副檔名的檔名 (例如: dk_params)
         filename = os.path.splitext(os.path.basename(f))[0]
-        # 優先顯示映射表中的中文，若無則顯示首字母大寫的檔名
-        display_name = COUNTRY_NAMES.get(filename, filename.capitalize())
+        
+        # 統一轉小寫進行 Key 比對
+        key = filename.lower()
+        
+        # 如果在 7 國名單內，顯示國旗中文；不在的話顯示原始檔名
+        display_name = COUNTRY_NAMES.get(key, filename.replace("_params", "").capitalize())
+        
         with open(f, 'r', encoding='utf-8') as j:
             configs[display_name] = json.load(j)
     return configs
-
 def load_users():
     user_file = "configs/users.json"
     try:
