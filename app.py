@@ -8,7 +8,6 @@ from google.cloud import vision
 
 # --- 1. 核心邏輯 ---
 
-# 建立國家名稱映射表 (對齊你 configs/ 裡的實際檔名)
 COUNTRY_NAMES = {
     "dk_params": "🇩🇰 丹麥",
     "es_params": "🇪🇸 西班牙",
@@ -21,25 +20,16 @@ COUNTRY_NAMES = {
 
 def load_all_configs():
     configs = {}
-    # 取得 configs 資料夾下所有 .json 檔案
     files = glob.glob("configs/*.json")
-    
     for f in files:
-        # 過濾掉人員清單
         if "users.json" in f: continue 
-        
-        # 取得不含副檔名的檔名 (例如: dk_params)
         filename = os.path.splitext(os.path.basename(f))[0]
-        
-        # 統一轉小寫進行 Key 比對
         key = filename.lower()
-        
-        # 如果在 7 國名單內，顯示國旗中文；不在的話顯示原始檔名
         display_name = COUNTRY_NAMES.get(key, filename.replace("_params", "").capitalize())
-        
         with open(f, 'r', encoding='utf-8') as j:
             configs[display_name] = json.load(j)
     return configs
+
 def load_users():
     user_file = "configs/users.json"
     try:
@@ -67,6 +57,8 @@ def normalize_date_pro(text, month_map):
 def extract_data(text, params):
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     vendor = lines[0] if lines else "未知商店"
+    
+    # --- 金額辨識 ---
     sep = re.escape(params['decimal_separator'])
     curr = params['currency_code'].upper()
     money_regex = rf'(\d+[{sep}]\d{{2}})[\s]*([A-Za-z]*)'
@@ -77,7 +69,26 @@ def extract_data(text, params):
             score = (200 if re.search(r'Visa|Dankort|Ialt|Total|Payment', line, re.I) else 0)
             if curr in line.upper(): score += 100
             candidates.append({'val': val, 'score': score + (i/len(lines)*60)})
-    return vendor, sorted(candidates, key=lambda x: x['score'], reverse=True)[0]['val'] if candidates else 0.0
+    final_amount = sorted(candidates, key=lambda x: x['score'], reverse=True)[0]['val'] if candidates else 0.0
+
+    # --- 品項辨識與摘要 (補強部分) ---
+    items = []
+    # 排除關鍵字：包含商店名、日期、幣別名稱、總計字眼
+    exclude_keywords = params.get('keywords', []) + [curr, "TOTAL", "SUBTOTAL", "SUM", "DATE"]
+    for l in lines[1:]: # 跳過第一行商店名
+        if any(k.upper() in l.upper() for k in exclude_keywords): continue
+        if re.search(r'\d{2,}', l) and len(l) < 5: continue # 可能是純數字雜訊
+        if re.search(r'[A-Za-z\u4e00-\u9fff]', l): # 必須包含文字或字母
+            items.append(l)
+    
+    if not items:
+        item_summary = ""
+    elif len(items) <= 2:
+        item_summary = ", ".join(items)
+    else:
+        item_summary = f"{items[0]}, {items[1]} 等共 {len(items)} 項"
+
+    return vendor, final_amount, item_summary
 
 def sync_to_sheets(df, user_name, curr_code):
     try:
@@ -85,7 +96,6 @@ def sync_to_sheets(df, user_name, curr_code):
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         creds = service_account.Credentials.from_service_account_info(creds_info, scopes=scopes)
         gc = gspread.authorize(creds)
-        # 你的試算表 ID
         sh = gc.open_by_key("1Aw7ti3Yadw9SJ1n6_WoEFU1SQrmDfIGQw6O0oeO_gUM")
         wks = sh.get_worksheet(0)
         output_data = []
@@ -99,7 +109,6 @@ def sync_to_sheets(df, user_name, curr_code):
         wks.append_rows(output_data, value_input_option='USER_ENTERED')
         return True
     except Exception as e:
-        if "200" in str(e): return True
         st.error(f"同步失敗：{e}")
         return False
 
@@ -118,13 +127,11 @@ with st.expander("👤 步驟 1：基本設定與結果查看", expanded=True):
         final_user = st.text_input("手寫姓名") if sel_user == "其他" else sel_user
     with c2:
         configs = load_all_configs()
-        # 此處會顯示「🇩🇰 丹麥」等中文名稱
         sel_display = st.selectbox("考察國家", list(configs.keys()))
         p = configs[sel_display]
         manual_rate = st.number_input(f"參考匯率 ({p['currency_code']})", value=4.60, step=0.01)
     with c3:
         fee_pct = st.number_input("手續費率 (%)", value=1.5, step=0.1) / 100
-        # 新增：試算表連結按鈕
         sheet_url = "https://docs.google.com/spreadsheets/d/1Aw7ti3Yadw9SJ1n6_WoEFU1SQrmDfIGQw6O0oeO_gUM/edit"
         st.link_button("📂 打開試算表查看結果", sheet_url, use_container_width=True)
 
@@ -148,10 +155,10 @@ if files:
             for idx, f in enumerate(files):
                 content = f.read()
                 res = client.document_text_detection(image=vision.Image(content=content))
-                v, a = extract_data(res.full_text_annotation.text, p)
+                v, a, items = extract_data(res.full_text_annotation.text, p)
                 d = normalize_date_pro(res.full_text_annotation.text, p.get('month_map', {}))
                 new_batch.append({
-                    "商店名稱": v, "參考品項": "", "消費日期": d, "外幣金額": a, "匯率": manual_rate, "備註": ""
+                    "商店名稱": v, "參考品項": items, "消費日期": d, "外幣金額": a, "匯率": manual_rate, "備註": ""
                 })
                 prog.progress((idx + 1) / len(files))
             st.session_state['data'] = new_batch
@@ -161,31 +168,39 @@ if files:
 # --- 步驟 3：確認與同步 ---
 if st.session_state['data']:
     st.markdown("---")
-    st.subheader("📝 步驟 3：數據確認 (手動修正外幣或匯率，下方將即時更新)")
+    st.subheader("📝 步驟 3：數據確認")
     
     df = pd.DataFrame(st.session_state['data'])
     df["消費日期"] = pd.to_datetime(df["消費日期"]).dt.date
 
-    col_order = ["商店名稱", "參考品項", "消費日期", "外幣金額", "匯率", "備註"]
-    
+    # --- 手機版表格優化：精簡顯示欄位 ---
     edited_df = st.data_editor(
-        df[col_order],
+        df[["商店名稱", "參考品項", "消費日期", "外幣金額", "匯率", "備註"]],
         column_config={
-            "消費日期": st.column_config.DateColumn(),
-            "外幣金額": st.column_config.NumberColumn(format="%.2f"),
+            "消費日期": st.column_config.DateColumn(width="small"),
+            "外幣金額": st.column_config.NumberColumn(format="%.2f", width="small"),
+            "匯率": st.column_config.NumberColumn(width="small"),
+            "備註": st.column_config.TextColumn(width="medium"),
+            "參考品項": st.column_config.TextColumn(width="medium")
         },
         num_rows="dynamic", use_container_width=True, key="editor"
     )
 
-    # 即時計算
+    # 計算台幣與手續費
     edited_df["原始台幣"] = (edited_df["外幣金額"] * edited_df["匯率"]).round(0)
     edited_df["手續費"] = (edited_df["原始台幣"] * fee_pct).round(0)
     edited_df["總計台幣"] = edited_df["原始台幣"] + edited_df["手續費"]
 
-    st.write("📊 **即時換算預覽：**")
-    final_cols = ["商店名稱", "參考品項", "消費日期", "外幣金額", "匯率", "原始台幣", "手續費", "總計台幣", "備註"]
-    st.dataframe(edited_df[final_cols], use_container_width=True)
-    
+    # --- 手機版預覽優化：改用卡片式呈現 ---
+    st.write("📊 **即時換算摘要 (TWD)：**")
+    for idx, row in edited_df.iterrows():
+        with st.container(border=True):
+            col_a, col_b = st.columns([2, 1])
+            col_a.markdown(f"**{row['商店名稱']}** ({row['消費日期']})")
+            col_a.caption(f"品項：{row['參考品項'] or '無'}")
+            col_b.markdown(f"**NT$ {int(row['總計台幣']):,}**")
+            col_b.caption(f"含手續費 {int(row['手續費'])}")
+
     total_val = int(edited_df["總計台幣"].sum())
     st.metric("本批總支出金額 (TWD)", f"{total_val:,} 元")
 
