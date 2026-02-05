@@ -21,27 +21,16 @@ COUNTRY_NAMES = {
 
 @st.cache_data(ttl=3600)
 def get_exchange_rate(currency_code):
-    """
-    抓取匯率。若無直接報價，則透過 USD 進行交叉換算。
-    保底值設為歐元 (35.0)。
-    """
     if currency_code == "TWD":
         return 1.0
-    
     try:
-        # 1. 嘗試直接抓取 (例如 JPYTWD=X)
         direct_ticker = f"{currency_code}TWD=X"
         data = yf.Ticker(direct_ticker).history(period="1d")
-        
         if not data.empty:
             return round(data['Close'].iloc[-1], 2)
         
-        # 2. 若直接抓取失敗，嘗試透過 USD 交叉換算
-        # 抓取 外幣對美元 (例如 DK KUSD=X)
         cur_usd_ticker = f"{currency_code}USD=X"
-        # 抓取 美元對台幣 (USDTWD=X)
         usd_twd_ticker = "USDTWD=X"
-        
         data_cur_usd = yf.Ticker(cur_usd_ticker).history(period="1d")
         data_usd_twd = yf.Ticker(usd_twd_ticker).history(period="1d")
         
@@ -49,8 +38,7 @@ def get_exchange_rate(currency_code):
             rate_cur_usd = data_cur_usd['Close'].iloc[-1]
             rate_usd_twd = data_usd_twd['Close'].iloc[-1]
             return round(rate_cur_usd * rate_usd_twd, 2)
-        
-        return 35.0 # 最終保底值
+        return 35.0
     except:
         return 35.0
 
@@ -76,10 +64,17 @@ def load_users():
     except: return ["預設登錄員"]
 
 def normalize_date_pro(text, month_map):
-    temp_text = text.replace("'", "")
+    # 先處理月份映射
+    temp_text = text.replace("'", " ") # 將單引號視為空格，處理 Jun'25
     for m_name, m_num in month_map.items():
         temp_text = re.sub(rf'\b{m_name}\b', m_num, temp_text, flags=re.IGNORECASE)
-    patterns = [r'(\d{1,2})[./\s-](\d{1,2})[./\s-](\d{4})', r'(\d{1,2})[./\s-](\d{1,2})[./\s-](\d{2})']
+    
+    # 增加支援 DD MM YY 或 DD MM YYYY (中間可能是空格、點、斜線或單引號後的空格)
+    patterns = [
+        r'(\d{1,2})[./\s-]+(\d{1,2})[./\s-]+(\d{4})', 
+        r'(\d{1,2})[./\s-]+(\d{1,2})[./\s-]+(\d{2})'
+    ]
+    
     for p in patterns:
         for m in re.finditer(p, temp_text):
             g = m.groups()
@@ -94,18 +89,17 @@ def extract_data(text, params):
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     vendor = lines[0] if lines else "未知商店"
     
-    # --- 1. 定位總價關鍵字所在的行號 (界定搜尋範圍) ---
     sep = re.escape(params['decimal_separator'])
     curr = params['currency_code'].upper()
     total_keywords = params.get('keywords', [])
     
-    total_line_idx = len(lines) # 預設搜尋到最後一行
+    total_line_idx = len(lines)
     for i, line in enumerate(lines):
         if any(k.upper() in line.upper() for k in total_keywords):
             total_line_idx = i
             break
 
-    # --- 2. 抓取金額 (邏輯維持穩定) ---
+    # 金額辨識 (這裡維持原本對區域設定的堅持)
     money_regex = rf'(\d+[{sep}]\d{{2}})[\s]*([A-Za-z]*)'
     candidates = []
     for i, line in enumerate(lines):
@@ -114,39 +108,43 @@ def extract_data(text, params):
             score = (200 if any(k.upper() in line.upper() for k in total_keywords) else 0)
             if curr in line.upper(): score += 100
             candidates.append({'val': val, 'score': score + (i/len(lines)*60)})
+    
+    # 如果完全沒抓到符合區域設定的金額，嘗試通用的 . 或 , 抓取
+    if not candidates:
+        fallback_money_regex = r'(\d+[.,]\d{2})'
+        for i, line in enumerate(lines):
+            for match in re.finditer(fallback_money_regex, line):
+                val = float(match.group(1).replace(',', '.'))
+                candidates.append({'val': val, 'score': i/len(lines)*50})
+
     final_amount = sorted(candidates, key=lambda x: x['score'], reverse=True)[0]['val'] if candidates else 0.0
 
-    # --- 3. 品項提取補強 (Sandwich 邏輯) ---
+    # 品項提取
     raw_items = []
-    # 只搜尋商店名之後到總額之前的行
     search_range = lines[1:total_line_idx] 
     
     for line in search_range:
-        # 特徵：該行必須同時包含「字母/中文字」且包含「價格格式的數字」
-        has_text = re.search(r'[A-Za-z\u4e00-\u9fff]{2,}', line)
-        has_price = re.search(rf'\d+[{sep}]\d{{2}}', line)
-        
-        # 排除包含日期或時間的行
-        is_date = re.search(r'\d{2,4}[./-]\d{1,2}[./-]\d{1,2}', line)
+        # 品項行特徵：文字 + 金額 (不管是用點還是逗號)
+        has_text = re.search(r'[A-Za-z\u4e00-\u9fff]{3,}', line)
+        has_price = re.search(r'\d+[.,]\d{2}', line)
+        is_date = re.search(r'\d{1,2}[./\s-]\d{1,2}', line)
         
         if has_text and has_price and not is_date:
-            # 清理：移除金額部分，保留品名
-            # 例如 "Hot Coffee   3.50" -> "Hot Coffee"
-            item_name = re.sub(rf'\d+[{sep}]\d{{2}}.*', '', line).strip()
-            # 移除行首可能的數量標記 (1x, 2 *, 3 )
-            item_name = re.sub(r'^\d+\s?[xX*]\s?', '', item_name)
-            item_name = re.sub(r'^\d+\s+', '', item_name)
-            
-            if len(item_name) > 2: # 避免抓到無意義的符號
-                raw_items.append(item_name)
+            # 移除金額與貨幣代碼
+            name = re.sub(r'\d+[.,]\d{2}.*', '', line).strip()
+            # 移除行首數量標記 (1, 1x, 1 *)
+            name = re.sub(r'^\d+\s?([xX*]\s?)?', '', name).strip()
+            if len(name) > 2 and not any(k.upper() in name.upper() for k in total_keywords):
+                raw_items.append(name)
 
-    # --- 4. 格式化為「xxx、ooo等」模式 ---
-    if not raw_items:
+    # 去重 (例如 5 個 Carlsberg 只列一次)
+    unique_items = list(dict.fromkeys(raw_items))
+    
+    if not unique_items:
         item_summary = ""
     else:
-        # 最多列舉三項
-        display_list = raw_items[:3]
-        item_summary = "、".join(display_list) + "等"
+        display_list = unique_items[:3]
+        item_summary = "、".join(display_list) + ("等" if len(unique_items) > 0 else "")
 
     return vendor, final_amount, item_summary
 
@@ -178,7 +176,6 @@ st.title("📊 國外考察支出登錄統計系統")
 
 if 'data' not in st.session_state: st.session_state['data'] = []
 
-# --- 步驟 1：基本設定 ---
 with st.expander("👤 步驟 1：基本設定與結果查看", expanded=True):
     c1, c2, c3 = st.columns([1, 1, 1])
     with c1:
@@ -190,21 +187,13 @@ with st.expander("👤 步驟 1：基本設定與結果查看", expanded=True):
         configs = load_all_configs()
         sel_display = st.selectbox("考察國家", list(configs.keys()))
         p = configs[sel_display]
-        
-        # 呼叫更新後的函式
         fetched_rate = get_exchange_rate(p['currency_code'])
-        
-        manual_rate = st.number_input(
-            f"參考匯率 ({p['currency_code']} → TWD)", 
-            value=float(fetched_rate), 
-            step=0.01
-        )
+        manual_rate = st.number_input(f"參考匯率 ({p['currency_code']} → TWD)", value=float(fetched_rate), step=0.01)
         
     with c3:
         fee_pct = st.number_input("手續費率 (%)", value=1.5, step=0.1) / 100
         st.link_button("📂 打開試算表查看結果", "https://docs.google.com/spreadsheets/d/1Aw7ti3Yadw9SJ1n6_WoEFU1SQrmDfIGQw6O0oeO_gUM/edit", use_container_width=True)
 
-# --- 步驟 2：上傳區 ---
 st.subheader("📸 步驟 2：上傳收據")
 files = st.file_uploader("批次上傳", accept_multiple_files=True, type=['jpg', 'jpeg', 'png'])
 
@@ -232,11 +221,9 @@ if files:
             st.success("✅ 辨識完成！")
         except Exception as e: st.error(f"辨識出錯：{e}")
 
-# --- 步驟 3：確認與同步 ---
 if st.session_state['data']:
     st.markdown("---")
     st.subheader("📝 步驟 3：數據確認")
-    
     df = pd.DataFrame(st.session_state['data'])
     df["消費日期"] = pd.to_datetime(df["消費日期"]).dt.date
 
