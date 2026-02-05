@@ -5,6 +5,7 @@ from google.oauth2 import service_account
 import io, os, glob, re, json
 from datetime import datetime
 from google.cloud import vision
+import yfinance as yf
 
 # --- 1. 核心邏輯 ---
 
@@ -17,6 +18,20 @@ COUNTRY_NAMES = {
     "jp_params": "🇯🇵 日本",
     "kr_params": "🇰🇷 南韓"
 }
+
+@st.cache_data(ttl=3600)
+def get_exchange_rate(currency_code):
+    """抓取即時匯率，若失敗則以歐元 (35.0) 為保底值"""
+    if currency_code == "TWD":
+        return 1.0
+    try:
+        ticker = f"{currency_code}TWD=X"
+        data = yf.Ticker(ticker).history(period="1d")
+        if not data.empty:
+            return round(data['Close'].iloc[-1], 2)
+        return 35.0  # 更改：API 沒資料時改填歐元保底值
+    except:
+        return 35.0  # 更改：網路斷線時改填歐元保底值
 
 def load_all_configs():
     configs = {}
@@ -58,7 +73,7 @@ def extract_data(text, params):
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     vendor = lines[0] if lines else "未知商店"
     
-    # --- 金額辨識 ---
+    # 金額辨識
     sep = re.escape(params['decimal_separator'])
     curr = params['currency_code'].upper()
     money_regex = rf'(\d+[{sep}]\d{{2}})[\s]*([A-Za-z]*)'
@@ -71,14 +86,13 @@ def extract_data(text, params):
             candidates.append({'val': val, 'score': score + (i/len(lines)*60)})
     final_amount = sorted(candidates, key=lambda x: x['score'], reverse=True)[0]['val'] if candidates else 0.0
 
-    # --- 品項辨識與摘要 (補強部分) ---
+    # 品項摘要補強
     items = []
-    # 排除關鍵字：包含商店名、日期、幣別名稱、總計字眼
     exclude_keywords = params.get('keywords', []) + [curr, "TOTAL", "SUBTOTAL", "SUM", "DATE"]
-    for l in lines[1:]: # 跳過第一行商店名
+    for l in lines[1:]: 
         if any(k.upper() in l.upper() for k in exclude_keywords): continue
-        if re.search(r'\d{2,}', l) and len(l) < 5: continue # 可能是純數字雜訊
-        if re.search(r'[A-Za-z\u4e00-\u9fff]', l): # 必須包含文字或字母
+        if re.search(r'\d{2,}', l) and len(l) < 5: continue 
+        if re.search(r'[A-Za-z\u4e00-\u9fff]', l): 
             items.append(l)
     
     if not items:
@@ -99,6 +113,7 @@ def sync_to_sheets(df, user_name, curr_code):
         sh = gc.open_by_key("1Aw7ti3Yadw9SJ1n6_WoEFU1SQrmDfIGQw6O0oeO_gUM")
         wks = sh.get_worksheet(0)
         output_data = []
+        # 保持 UTC+0 的伺服器時間
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         for _, row in df.iterrows():
             output_data.append([
@@ -118,22 +133,29 @@ st.title("📊 國外考察支出登錄統計系統")
 
 if 'data' not in st.session_state: st.session_state['data'] = []
 
-# --- 步驟 1：設定區 ---
+# --- 步驟 1：基本設定 ---
 with st.expander("👤 步驟 1：基本設定與結果查看", expanded=True):
     c1, c2, c3 = st.columns([1, 1, 1])
     with c1:
         user_options = load_users() + ["其他"]
         sel_user = st.selectbox("人員", user_options)
         final_user = st.text_input("手寫姓名") if sel_user == "其他" else sel_user
-    with c2:
+with c2:
         configs = load_all_configs()
         sel_display = st.selectbox("考察國家", list(configs.keys()))
         p = configs[sel_display]
-        manual_rate = st.number_input(f"參考匯率 ({p['currency_code']})", value=4.60, step=0.01)
+        
+        # 呼叫更新後的函式
+        fetched_rate = get_exchange_rate(p['currency_code'])
+        
+        manual_rate = st.number_input(
+            f"參考匯率 ({p['currency_code']} → TWD)", 
+            value=float(fetched_rate), 
+            step=0.01
+        )
     with c3:
         fee_pct = st.number_input("手續費率 (%)", value=1.5, step=0.1) / 100
-        sheet_url = "https://docs.google.com/spreadsheets/d/1Aw7ti3Yadw9SJ1n6_WoEFU1SQrmDfIGQw6O0oeO_gUM/edit"
-        st.link_button("📂 打開試算表查看結果", sheet_url, use_container_width=True)
+        st.link_button("📂 打開試算表查看結果", "https://docs.google.com/spreadsheets/d/1Aw7ti3Yadw9SJ1n6_WoEFU1SQrmDfIGQw6O0oeO_gUM/edit", use_container_width=True)
 
 # --- 步驟 2：上傳區 ---
 st.subheader("📸 步驟 2：上傳收據")
@@ -157,9 +179,7 @@ if files:
                 res = client.document_text_detection(image=vision.Image(content=content))
                 v, a, items = extract_data(res.full_text_annotation.text, p)
                 d = normalize_date_pro(res.full_text_annotation.text, p.get('month_map', {}))
-                new_batch.append({
-                    "商店名稱": v, "參考品項": items, "消費日期": d, "外幣金額": a, "匯率": manual_rate, "備註": ""
-                })
+                new_batch.append({"商店名稱": v, "參考品項": items, "消費日期": d, "外幣金額": a, "匯率": manual_rate, "備註": ""})
                 prog.progress((idx + 1) / len(files))
             st.session_state['data'] = new_batch
             st.success("✅ 辨識完成！")
@@ -173,36 +193,33 @@ if st.session_state['data']:
     df = pd.DataFrame(st.session_state['data'])
     df["消費日期"] = pd.to_datetime(df["消費日期"]).dt.date
 
-    # --- 手機版表格優化：精簡顯示欄位 ---
+    # 編輯器隱藏不需要手動頻繁修改的欄位以縮減寬度
     edited_df = st.data_editor(
         df[["商店名稱", "參考品項", "消費日期", "外幣金額", "匯率", "備註"]],
         column_config={
             "消費日期": st.column_config.DateColumn(width="small"),
             "外幣金額": st.column_config.NumberColumn(format="%.2f", width="small"),
             "匯率": st.column_config.NumberColumn(width="small"),
-            "備註": st.column_config.TextColumn(width="medium"),
-            "參考品項": st.column_config.TextColumn(width="medium")
         },
         num_rows="dynamic", use_container_width=True, key="editor"
     )
 
-    # 計算台幣與手續費
+    # 計算台幣
     edited_df["原始台幣"] = (edited_df["外幣金額"] * edited_df["匯率"]).round(0)
     edited_df["手續費"] = (edited_df["原始台幣"] * fee_pct).round(0)
     edited_df["總計台幣"] = edited_df["原始台幣"] + edited_df["手續費"]
 
-    # --- 手機版預覽優化：改用卡片式呈現 ---
+    # 手機版卡片式預覽
     st.write("📊 **即時換算摘要 (TWD)：**")
     for idx, row in edited_df.iterrows():
         with st.container(border=True):
             col_a, col_b = st.columns([2, 1])
             col_a.markdown(f"**{row['商店名稱']}** ({row['消費日期']})")
-            col_a.caption(f"品項：{row['參考品項'] or '無'}")
+            col_a.caption(f"品項：{row['參考品項'] or '未抓取到品項'}")
             col_b.markdown(f"**NT$ {int(row['總計台幣']):,}**")
             col_b.caption(f"含手續費 {int(row['手續費'])}")
 
-    total_val = int(edited_df["總計台幣"].sum())
-    st.metric("本批總支出金額 (TWD)", f"{total_val:,} 元")
+    st.metric("本批總支出金額 (TWD)", f"{int(edited_df['總計台幣'].sum()):,} 元")
 
     if st.button("📤 同步至雲端", type="primary", use_container_width=True):
         if sync_to_sheets(edited_df, final_user, p['currency_code']):
