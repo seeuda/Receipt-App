@@ -44,79 +44,73 @@ def load_users():
     except: return ["預設登錄員"]
 
 def normalize_date_pro(text, month_map):
-    # 1. 嘗試尋找 YYYY/MM/DD 或 DD/MM/YYYY (最穩定的標準格式)
-    std_pattern = r'(\d{2,4})[./\s- ]+(\d{1,2})[./\s- ]+(\d{2,4})'
-    std_matches = list(re.finditer(std_pattern, text))
-    for m in reversed(std_matches):
-        g = m.groups()
+    # 1. 預處理：在數字與字母交界處補空格 (處理 18Jun'25 -> 18 Jun 25)
+    t = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', text)
+    t = re.sub(r'([a-zA-Z])(\d)', r'\1 \2', t)
+    
+    # 2. 徹底清理非字母數字的符號
+    t = re.sub(r"[^a-zA-Z0-9]", " ", t)
+    
+    # 3. 月份替換 (Juni -> 06)
+    sorted_months = sorted(month_map.items(), key=lambda x: len(x[0]), reverse=True)
+    for m_name, m_num in sorted_months:
+        t = re.sub(rf'\b{m_name}\b', f" {m_num} ", t, flags=re.IGNORECASE)
+    
+    # 4. 尋找三組數字 (修正 Regex 錯誤)
+    matches = re.findall(r'(\d{1,2})\s+(\d{1,2})\s+(\d{2,4})', t)
+    
+    # 從後往前找合理的年份
+    for d_str, m_str, y_str in reversed(matches):
         try:
-            # 判斷哪一個是年 (2020-2026)
-            parts = [int(g[0]), int(g[1]), int(g[2])]
-            year = month = day = 0
-            if 2020 <= parts[0] <= 2026: year, month, day = parts[0], parts[1], parts[2]
-            elif 2020 <= parts[2] <= 2026: year, month, day = parts[2], parts[1], parts[0]
-            if 1 <= month <= 12 and 1 <= day <= 31:
+            day, month = int(d_str), int(m_str)
+            year = int(y_str) if len(y_str) == 4 else int(f"20{y_str}")
+            if 2020 <= year <= 2026 and 1 <= month <= 12 and 1 <= day <= 31:
                 return datetime(year, month, day).date()
         except: continue
-
-    # 2. 月份映射救援 (針對 18 Jun'25 或 18/Juni/2025)
-    t = text.replace("'", " ").replace("/", " ").replace("-", " ")
-    for m_name, m_num in sorted(month_map.items(), key=lambda x: len(x[0]), reverse=True):
-        t = re.sub(rf'{m_name}', f" {m_num} ", t, flags=re.IGNORECASE)
-    
-    rescue_pattern = r'(\d{1,2})\s+(\d{1,2})\s+(\d{2,4})'
-    rescue_matches = list(re.finditer(rescue_pattern, t))
-    for m in reversed(rescue_matches):
-        g = m.groups()
-        try:
-            d, m_val = int(g[0]), int(g[1])
-            y_str = g[2]
-            y = int(y_str) if len(y_str) == 4 else int(f"20{y_str}")
-            if 2020 <= y <= 2026 and 1 <= m_val <= 12 and 1 <= d <= 31:
-                return datetime(y, m_val, d).date()
-        except: continue
-
     return datetime.now().date()
 
 def extract_data(text, params):
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     vendor = lines[0] if lines else "未知商店"
-    total_keys = params.get('keywords', []) + ["TOTAL", "PAYMENT", "SUBTOTAL", "MOMS", "VAT", "DANKORT", "ALT", "Ialt"]
+    curr = params['currency_code'].upper()
+    total_keys = params.get('keywords', []) + ["TOTAL", "PAYMENT", "SUBTOTAL", "MOMS", "VAT", "DANKORT", "DKK", "EUR", "IALT"]
 
     # 1. 金額辨識 (權重系統)
     candidates = []
     for i, line in enumerate(lines):
-        # 尋找所有 0.00 格式
         found = re.findall(r'(\d+[.,]\d{2})', line)
         for val_str in found:
             try:
                 val = float(val_str.replace(',', '.'))
-                score = i
+                score = i * 2 
                 if any(k.upper() in line.upper() for k in total_keys): score += 500
-                if "MOMS" in line.upper(): score -= 400
+                if curr in line.upper(): score += 200
+                if "MOMS" in line.upper() or "VAT" in line.upper(): score -= 600
                 candidates.append({'val': val, 'score': score})
             except: continue
     final_amount = sorted(candidates, key=lambda x: x['score'], reverse=True)[0]['val'] if candidates else 0.0
 
-    # 2. 品項辨識 (北歐特殊字元救援)
+    # 2. 品項辨識 (全新邏輯：排除法)
     raw_items = []
     for line in lines[1:]:
-        # 排除地址/長數字/純日期
+        # 排除包含過多數字的行 (稅號、電話、地址)
         if len(re.findall(r'\d', line)) > 10: continue
         
-        # 特徵：包含歐洲文字 [A-Za-zÀ-ÿ] 且包含金額
+        # 必須包含文字 (支援歐洲特殊字元) 且 包含價格
         has_text = re.search(r'[A-Za-zÀ-ÿ]{3,}', line)
         has_price = re.search(r'\d+[.,]\d{2}', line)
         
         if has_text and has_price:
+            # 排除包含總計關鍵字的行
             if any(k.upper() in line.upper() for k in total_keys): continue
             
-            # 取得該行中「最後一個金額」之前的所有內容
-            parts = re.split(r'\d+[.,]\d{2}', line)
-            name = parts[0].strip()
-            
-            # 清理：移除數量標記 (如 1, 2 x)
-            name = re.sub(r'^\d+\s?([xX*]\s?)?', '', name).strip()
+            # --- 品名提取核心 ---
+            # a. 移除所有金額 (如 75.00, 35,00)
+            name = re.sub(r'\d+[.,]\d{2}', '', line).strip()
+            # b. 移除行首數量標記 (如 1, 2 x, 1 *)
+            name = re.sub(r'^[\d\s]+[xX*]?\s*', '', name).strip()
+            # c. 移除常見雜訊字元
+            name = name.replace("*", "").strip()
             
             if len(name) > 3: raw_items.append(name)
 
