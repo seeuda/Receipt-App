@@ -21,17 +21,38 @@ COUNTRY_NAMES = {
 
 @st.cache_data(ttl=3600)
 def get_exchange_rate(currency_code):
-    """抓取即時匯率，若失敗則以歐元 (35.0) 為保底值"""
+    """
+    抓取匯率。若無直接報價，則透過 USD 進行交叉換算。
+    保底值設為歐元 (35.0)。
+    """
     if currency_code == "TWD":
         return 1.0
+    
     try:
-        ticker = f"{currency_code}TWD=X"
-        data = yf.Ticker(ticker).history(period="1d")
+        # 1. 嘗試直接抓取 (例如 JPYTWD=X)
+        direct_ticker = f"{currency_code}TWD=X"
+        data = yf.Ticker(direct_ticker).history(period="1d")
+        
         if not data.empty:
             return round(data['Close'].iloc[-1], 2)
-        return 35.0 
+        
+        # 2. 若直接抓取失敗，嘗試透過 USD 交叉換算
+        # 抓取 外幣對美元 (例如 DK KUSD=X)
+        cur_usd_ticker = f"{currency_code}USD=X"
+        # 抓取 美元對台幣 (USDTWD=X)
+        usd_twd_ticker = "USDTWD=X"
+        
+        data_cur_usd = yf.Ticker(cur_usd_ticker).history(period="1d")
+        data_usd_twd = yf.Ticker(usd_twd_ticker).history(period="1d")
+        
+        if not data_cur_usd.empty and not data_usd_twd.empty:
+            rate_cur_usd = data_cur_usd['Close'].iloc[-1]
+            rate_usd_twd = data_usd_twd['Close'].iloc[-1]
+            return round(rate_cur_usd * rate_usd_twd, 2)
+        
+        return 35.0 # 最終保底值
     except:
-        return 35.0 
+        return 35.0
 
 def load_all_configs():
     configs = {}
