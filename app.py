@@ -10,24 +10,19 @@ import yfinance as yf
 # --- 1. 核心邏輯 ---
 
 COUNTRY_NAMES = {
-    "dk_params": "🇩🇰 丹麥",
-    "es_params": "🇪🇸 西班牙",
-    "at_params": "🇦🇹 奧地利",
-    "cz_params": "🇨🇿 捷克",
-    "tr_params": "🇹🇷 土耳其",
-    "jp_params": "🇯🇵 日本",
-    "kr_params": "🇰🇷 南韓"
+    "dk_params": "🇩🇰 丹麥", "es_params": "🇪🇸 西班牙", "at_params": "🇦🇹 奧地利",
+    "cz_params": "🇨🇿 捷克", "tr_params": "🇹🇷 土耳其", "jp_params": "🇯🇵 日本", "kr_params": "🇰🇷 南韓"
 }
 
 @st.cache_data(ttl=3600)
 def get_exchange_rate(currency_code):
     if currency_code == "TWD": return 1.0
     try:
-        direct_ticker = f"{currency_code}TWD=X"
-        data = yf.Ticker(direct_ticker).history(period="1d")
+        direct = f"{currency_code}TWD=X"
+        data = yf.Ticker(direct).history(period="1d")
         if not data.empty: return round(data['Close'].iloc[-1], 2)
-        c_usd, u_twd = f"{currency_code}USD=X", "USDTWD=X"
-        d1, d2 = yf.Ticker(c_usd).history(period="1d"), yf.Ticker(u_twd).history(period="1d")
+        d1 = yf.Ticker(f"{currency_code}USD=X").history(period="1d")
+        d2 = yf.Ticker("USDTWD=X").history(period="1d")
         if not d1.empty and not d2.empty:
             return round(d1['Close'].iloc[-1] * d2['Close'].iloc[-1], 2)
         return 35.0
@@ -35,8 +30,7 @@ def get_exchange_rate(currency_code):
 
 def load_all_configs():
     configs = {}
-    files = glob.glob("configs/*.json")
-    for f in files:
+    for f in glob.glob("configs/*.json"):
         if "users.json" in f: continue 
         fn = os.path.splitext(os.path.basename(f))[0]
         dn = COUNTRY_NAMES.get(fn.lower(), fn.replace("_params", "").capitalize())
@@ -50,21 +44,18 @@ def load_users():
     except: return ["預設登錄員"]
 
 def normalize_date_pro(text, month_map):
-    # 1. 徹底清理干擾字元 (尤其是單引號與換行)
-    # 將 Jun'25 變成 Jun 25
-    t = text.replace("'", " ").replace("\n", " ")
+    # 1. 激進清理：將所有常見分隔符符號轉為空格
+    t = text.replace("'", " ").replace("/", " ").replace(".", " ").replace("-", " ").replace("\n", " ")
     
-    # 2. 月份替換 (不論前後是否有空格)
+    # 2. 月份替換 (Juni, Jun -> 06)
     for m_name, m_num in month_map.items():
-        t = re.sub(rf'{m_name}', f" {m_num} ", t, flags=re.IGNORECASE)
+        t = re.sub(rf'\b{m_name}\b', f" {m_num} ", t, flags=re.IGNORECASE)
     
-    # 3. 搜尋 日 月 年 模式
-    # 支援格式: 18 06 25, 18/06/2025, 18.06.25
-    # 我們找符合 2020~2026 年份的日期
-    date_regex = r'(\d{1,2})[./\s-]+(\d{1,2})[./\s-]+(\d{2,4})'
+    # 3. 抓取所有數字組合
+    date_regex = r'(\d{1,2})\s+(\d{1,2})\s+(\d{2,4})'
     matches = list(re.finditer(date_regex, t))
     
-    # 從後往前找（收據日期通常不在最上面）
+    # 從後往前找（通常日期在收據中下段），但排除掉顯然不是年份的長數字
     for m in reversed(matches):
         g = m.groups()
         try:
@@ -79,52 +70,38 @@ def normalize_date_pro(text, month_map):
 def extract_data(text, params):
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     vendor = lines[0] if lines else "未知商店"
-    
-    # 取得關鍵字
-    total_keys = params.get('keywords', []) + ["TOTAL", "PAYMENT", "SUBTOTAL", "MOMS", "VAT", "NET"]
-    
-    # --- 金額辨識 (找最大的合理數字) ---
+    total_keys = params.get('keywords', []) + ["TOTAL", "PAYMENT", "SUBTOTAL", "MOMS", "VAT", "DANKORT"]
+
+    # 金額辨識
     money_regex = r'(\d+[.,]\d{2})'
     candidates = []
     for i, line in enumerate(lines):
         for match in re.finditer(money_regex, line):
-            val_str = match.group(1).replace(',', '.')
-            try:
-                val = float(val_str)
-                score = i # 越後面分數越高
-                if any(k.upper() in line.upper() for k in params.get('keywords', [])): score += 500
-                if "MOMS" in line.upper() or "VAT" in line.upper(): score -= 400
-                candidates.append({'val': val, 'score': score})
-            except: continue
-    
+            val = float(match.group(1).replace(',', '.'))
+            score = i
+            if any(k.upper() in line.upper() for k in params.get('keywords', [])): score += 500
+            if "MOMS" in line.upper(): score -= 400
+            candidates.append({'val': val, 'score': score})
     final_amount = sorted(candidates, key=lambda x: x['score'], reverse=True)[0]['val'] if candidates else 0.0
 
-    # --- 品項辨識 (針對丹麥收據強化) ---
+    # 品項辨識
     raw_items = []
     for line in lines[1:]:
-        # 排除地址/電話/稅號 (數字太多的行)
-        if len(re.findall(r'\d', line)) > 10: continue
+        # 排除地址/電話/日期行
+        if len(re.findall(r'\d', line)) > 10 or re.search(r'\d{1,2}\s+\d{1,2}\s+\d{2}', line): continue
         
-        # 品項行特徵：文字 + 金額 (不管是用點還是逗號)
-        # 例如: "1 Carlsberg Fadøl 75.00"
         has_text = re.search(r'[A-Za-z\u4e00-\u9fff]{3,}', line)
         has_price = re.search(r'\d+[.,]\d{2}', line)
         
         if has_text and has_price:
-            # 排除掉總額、稅金等「結果行」
             if any(k.upper() in line.upper() for k in total_keys): continue
-            
-            # 清理品名
-            # 1. 移除金額以後的所有內容
+            # 移除金額與數量
             name = re.sub(r'\d+[.,]\d{2}.*', '', line).strip()
-            # 2. 移除行首的數量 (數字、x、*)
             name = re.sub(r'^[\d\s]+[xX*]?\s*', '', name).strip()
-            
             if len(name) > 3: raw_items.append(name)
 
-    unique_items = list(dict.fromkeys(raw_items)) # 去重
-    item_summary = "、".join(unique_items[:3]) + ("等" if len(unique_items) > 3 else "等" if unique_items else "")
-    
+    unique_items = list(dict.fromkeys(raw_items))
+    item_summary = "、".join(unique_items[:3]) + ("等" if unique_items else "")
     return vendor, final_amount, item_summary
 
 def sync_to_sheets(df, user_name, curr_code):
@@ -143,13 +120,11 @@ def sync_to_sheets(df, user_name, curr_code):
             ])
         wks.append_rows(output_data, value_input_option='USER_ENTERED')
         return True
-    except Exception as e:
-        st.error(f"同步失敗：{e}"); return False
+    except: return False
 
 # --- 2. 網頁介面 ---
 st.set_page_config(page_title="支出登錄系統", layout="wide")
 st.title("📊 國外考察支出登錄統計系統")
-
 if 'data' not in st.session_state: st.session_state['data'] = []
 
 with st.expander("👤 步驟 1：基本設定", expanded=True):
@@ -179,9 +154,8 @@ if files:
             client = vision.ImageAnnotatorClient(credentials=creds)
             prog = st.progress(0)
             for idx, f in enumerate(files):
-                img_content = f.read()
-                res = client.document_text_detection(image=vision.Image(content=img_content))
-                txt = res.full_text_annotation.text
+                img = vision.Image(content=f.read())
+                txt = client.document_text_detection(image=img).full_text_annotation.text
                 v, a, it = extract_data(txt, p)
                 d = normalize_date_pro(txt, p.get('month_map', {}))
                 new_batch.append({"商店名稱":v, "參考品項":it, "消費日期":d, "外幣金額":a, "匯率":m_rate, "備註":""})
@@ -196,12 +170,10 @@ if st.session_state['data']:
     df = pd.DataFrame(st.session_state['data'])
     df["消費日期"] = pd.to_datetime(df["消費日期"]).dt.date
     edf = st.data_editor(df[["商店名稱", "參考品項", "消費日期", "外幣金額", "匯率", "備註"]], use_container_width=True)
-    
     edf["原始台幣"] = (edf["外幣金額"] * edf["匯率"]).round(0)
     edf["手續費"] = (edf["原始台幣"] * fee).round(0)
     edf["總計台幣"] = edf["原始台幣"] + edf["手續費"]
 
-    st.write("📊 **換算預覽：**")
     for idx, row in edf.iterrows():
         with st.container(border=True):
             ca, cb = st.columns([2, 1])
