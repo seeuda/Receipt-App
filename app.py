@@ -29,9 +29,9 @@ def get_exchange_rate(currency_code):
         data = yf.Ticker(ticker).history(period="1d")
         if not data.empty:
             return round(data['Close'].iloc[-1], 2)
-        return 35.0  # 更改：API 沒資料時改填歐元保底值
+        return 35.0 
     except:
-        return 35.0  # 更改：網路斷線時改填歐元保底值
+        return 35.0 
 
 def load_all_configs():
     configs = {}
@@ -113,7 +113,6 @@ def sync_to_sheets(df, user_name, curr_code):
         sh = gc.open_by_key("1Aw7ti3Yadw9SJ1n6_WoEFU1SQrmDfIGQw6O0oeO_gUM")
         wks = sh.get_worksheet(0)
         output_data = []
-        # 保持 UTC+0 的伺服器時間
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         for _, row in df.iterrows():
             output_data.append([
@@ -140,7 +139,8 @@ with st.expander("👤 步驟 1：基本設定與結果查看", expanded=True):
         user_options = load_users() + ["其他"]
         sel_user = st.selectbox("人員", user_options)
         final_user = st.text_input("手寫姓名") if sel_user == "其他" else sel_user
-with c2:
+    
+    with c2:
         configs = load_all_configs()
         sel_display = st.selectbox("考察國家", list(configs.keys()))
         p = configs[sel_display]
@@ -153,6 +153,7 @@ with c2:
             value=float(fetched_rate), 
             step=0.01
         )
+        
     with c3:
         fee_pct = st.number_input("手續費率 (%)", value=1.5, step=0.1) / 100
         st.link_button("📂 打開試算表查看結果", "https://docs.google.com/spreadsheets/d/1Aw7ti3Yadw9SJ1n6_WoEFU1SQrmDfIGQw6O0oeO_gUM/edit", use_container_width=True)
@@ -193,7 +194,6 @@ if st.session_state['data']:
     df = pd.DataFrame(st.session_state['data'])
     df["消費日期"] = pd.to_datetime(df["消費日期"]).dt.date
 
-    # 編輯器隱藏不需要手動頻繁修改的欄位以縮減寬度
     edited_df = st.data_editor(
         df[["商店名稱", "參考品項", "消費日期", "外幣金額", "匯率", "備註"]],
         column_config={
@@ -204,12 +204,10 @@ if st.session_state['data']:
         num_rows="dynamic", use_container_width=True, key="editor"
     )
 
-    # 計算台幣
     edited_df["原始台幣"] = (edited_df["外幣金額"] * edited_df["匯率"]).round(0)
     edited_df["手續費"] = (edited_df["原始台幣"] * fee_pct).round(0)
     edited_df["總計台幣"] = edited_df["原始台幣"] + edited_df["手續費"]
 
-    # 手機版卡片式預覽
     st.write("📊 **即時換算摘要 (TWD)：**")
     for idx, row in edited_df.iterrows():
         with st.container(border=True):
