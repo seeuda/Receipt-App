@@ -94,34 +94,59 @@ def extract_data(text, params):
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     vendor = lines[0] if lines else "未知商店"
     
-    # 金額辨識
+    # --- 1. 定位總價關鍵字所在的行號 (界定搜尋範圍) ---
     sep = re.escape(params['decimal_separator'])
     curr = params['currency_code'].upper()
+    total_keywords = params.get('keywords', [])
+    
+    total_line_idx = len(lines) # 預設搜尋到最後一行
+    for i, line in enumerate(lines):
+        if any(k.upper() in line.upper() for k in total_keywords):
+            total_line_idx = i
+            break
+
+    # --- 2. 抓取金額 (邏輯維持穩定) ---
     money_regex = rf'(\d+[{sep}]\d{{2}})[\s]*([A-Za-z]*)'
     candidates = []
     for i, line in enumerate(lines):
         for match in re.finditer(money_regex, line):
             val = float(match.group(1).replace(params['decimal_separator'], '.'))
-            score = (200 if re.search(r'Visa|Dankort|Ialt|Total|Payment', line, re.I) else 0)
+            score = (200 if any(k.upper() in line.upper() for k in total_keywords) else 0)
             if curr in line.upper(): score += 100
             candidates.append({'val': val, 'score': score + (i/len(lines)*60)})
     final_amount = sorted(candidates, key=lambda x: x['score'], reverse=True)[0]['val'] if candidates else 0.0
 
-    # 品項摘要補強
-    items = []
-    exclude_keywords = params.get('keywords', []) + [curr, "TOTAL", "SUBTOTAL", "SUM", "DATE"]
-    for l in lines[1:]: 
-        if any(k.upper() in l.upper() for k in exclude_keywords): continue
-        if re.search(r'\d{2,}', l) and len(l) < 5: continue 
-        if re.search(r'[A-Za-z\u4e00-\u9fff]', l): 
-            items.append(l)
+    # --- 3. 品項提取補強 (Sandwich 邏輯) ---
+    raw_items = []
+    # 只搜尋商店名之後到總額之前的行
+    search_range = lines[1:total_line_idx] 
     
-    if not items:
+    for line in search_range:
+        # 特徵：該行必須同時包含「字母/中文字」且包含「價格格式的數字」
+        has_text = re.search(r'[A-Za-z\u4e00-\u9fff]{2,}', line)
+        has_price = re.search(rf'\d+[{sep}]\d{{2}}', line)
+        
+        # 排除包含日期或時間的行
+        is_date = re.search(r'\d{2,4}[./-]\d{1,2}[./-]\d{1,2}', line)
+        
+        if has_text and has_price and not is_date:
+            # 清理：移除金額部分，保留品名
+            # 例如 "Hot Coffee   3.50" -> "Hot Coffee"
+            item_name = re.sub(rf'\d+[{sep}]\d{{2}}.*', '', line).strip()
+            # 移除行首可能的數量標記 (1x, 2 *, 3 )
+            item_name = re.sub(r'^\d+\s?[xX*]\s?', '', item_name)
+            item_name = re.sub(r'^\d+\s+', '', item_name)
+            
+            if len(item_name) > 2: # 避免抓到無意義的符號
+                raw_items.append(item_name)
+
+    # --- 4. 格式化為「xxx、ooo等」模式 ---
+    if not raw_items:
         item_summary = ""
-    elif len(items) <= 2:
-        item_summary = ", ".join(items)
     else:
-        item_summary = f"{items[0]}, {items[1]} 等共 {len(items)} 項"
+        # 最多列舉三項
+        display_list = raw_items[:3]
+        item_summary = "、".join(display_list) + "等"
 
     return vendor, final_amount, item_summary
 
