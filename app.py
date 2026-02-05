@@ -26,11 +26,8 @@ def get_exchange_rate(currency_code):
         direct_ticker = f"{currency_code}TWD=X"
         data = yf.Ticker(direct_ticker).history(period="1d")
         if not data.empty: return round(data['Close'].iloc[-1], 2)
-        
-        c_usd = f"{currency_code}USD=X"
-        u_twd = "USDTWD=X"
-        d1 = yf.Ticker(c_usd).history(period="1d")
-        d2 = yf.Ticker(u_twd).history(period="1d")
+        c_usd, u_twd = f"{currency_code}USD=X", "USDTWD=X"
+        d1, d2 = yf.Ticker(c_usd).history(period="1d"), yf.Ticker(u_twd).history(period="1d")
         if not d1.empty and not d2.empty:
             return round(d1['Close'].iloc[-1] * d2['Close'].iloc[-1], 2)
         return 35.0
@@ -53,82 +50,106 @@ def load_users():
     except: return ["預設登錄員"]
 
 def normalize_date_pro(text, month_map):
-    # 1. 強化清理：處理 Jun'25 這種黏在一起的情況
-    clean_text = text.replace("'", " ").replace("\n", " ")
+    # 1. 徹底清理干擾字元 (尤其是單引號與換行)
+    # 將 Jun'25 變成 Jun 25
+    t = text.replace("'", " ").replace("\n", " ")
     
-    # 2. 月份轉換 (處理 Jun, Jun', June 等)
+    # 2. 月份替換 (不論前後是否有空格)
     for m_name, m_num in month_map.items():
-        # 不使用 \b，改用更寬鬆的替換
-        clean_text = re.sub(rf'{m_name}', f" {m_num} ", clean_text, flags=re.IGNORECASE)
+        t = re.sub(rf'{m_name}', f" {m_num} ", t, flags=re.IGNORECASE)
     
-    # 3. 搜尋日期模式 (日 月 年)
-    # 模式：1-2位數字 + 分隔符 + 1-2位數字 + 分隔符 + 2或4位數字
-    date_patterns = [
-        r'(\d{1,2})[./\s-]+(\d{1,2})[./\s-]+(\d{4})',
-        r'(\d{1,2})[./\s-]+(\d{1,2})[./\s-]+(\d{2})'
-    ]
+    # 3. 搜尋 日 月 年 模式
+    # 支援格式: 18 06 25, 18/06/2025, 18.06.25
+    # 我們找符合 2020~2026 年份的日期
+    date_regex = r'(\d{1,2})[./\s-]+(\d{1,2})[./\s-]+(\d{2,4})'
+    matches = list(re.finditer(date_regex, t))
     
-    for p in date_patterns:
-        matches = list(re.finditer(p, clean_text))
-        for m in reversed(matches): # 從後往前找，通常收據日期在中間
-            g = m.groups()
-            try:
-                y = g[2] if len(g[2]) == 4 else f"20{g[2]}"
-                v_dt = datetime(int(y), int(g[1]), int(g[0]))
-                if 2020 <= v_dt.year <= 2026: return v_dt.date()
-            except: continue
+    # 從後往前找（收據日期通常不在最上面）
+    for m in reversed(matches):
+        g = m.groups()
+        try:
+            day, month = int(g[0]), int(g[1])
+            year_str = g[2]
+            year = int(year_str) if len(year_str) == 4 else int(f"20{year_str}")
+            if 2020 <= year <= 2026 and 1 <= month <= 12 and 1 <= day <= 31:
+                return datetime(year, month, day).date()
+        except: continue
     return datetime.now().date()
 
 def extract_data(text, params):
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     vendor = lines[0] if lines else "未知商店"
-    sep = re.escape(params['decimal_separator'])
-    curr = params['currency_code'].upper()
-    total_keywords = params.get('keywords', [])
-
-    # --- 金額辨識 (優先找最後出現的總計) ---
+    
+    # 取得關鍵字
+    total_keys = params.get('keywords', []) + ["TOTAL", "PAYMENT", "SUBTOTAL", "MOMS", "VAT", "NET"]
+    
+    # --- 金額辨識 (找最大的合理數字) ---
     money_regex = r'(\d+[.,]\d{2})'
     candidates = []
     for i, line in enumerate(lines):
         for match in re.finditer(money_regex, line):
-            val = float(match.group(1).replace(',', '.'))
-            score = i # 越後面的金額權重越高
-            if any(k.upper() in line.upper() for k in total_keywords): score += 500
-            if curr in line.upper(): score += 200
-            if "MOMS" in line.upper() or "TAX" in line.upper(): score -= 300 # 排除稅金行
-            candidates.append({'val': val, 'score': score})
+            val_str = match.group(1).replace(',', '.')
+            try:
+                val = float(val_str)
+                score = i # 越後面分數越高
+                if any(k.upper() in line.upper() for k in params.get('keywords', [])): score += 500
+                if "MOMS" in line.upper() or "VAT" in line.upper(): score -= 400
+                candidates.append({'val': val, 'score': score})
+            except: continue
     
     final_amount = sorted(candidates, key=lambda x: x['score'], reverse=True)[0]['val'] if candidates else 0.0
 
-    # --- 品項辨識 (針對丹麥收據優化) ---
+    # --- 品項辨識 (針對丹麥收據強化) ---
     raw_items = []
-    # 排除地址/電話等雜訊 (通常包含過多數字)
     for line in lines[1:]:
-        # 排除包含大量連續數字的行 (如 CVR, Tlf, 帳號)
-        if len(re.findall(r'\d', line)) > 8: continue
-        # 排除包含日期格式的行
-        if re.search(r'\d{2,4}[./\s]\d{1,2}[./\s]\d{2,4}', line): continue
+        # 排除地址/電話/稅號 (數字太多的行)
+        if len(re.findall(r'\d', line)) > 10: continue
         
-        # 特徵：該行必須有文字 + 且有金額格式數字
+        # 品項行特徵：文字 + 金額 (不管是用點還是逗號)
+        # 例如: "1 Carlsberg Fadøl 75.00"
         has_text = re.search(r'[A-Za-z\u4e00-\u9fff]{3,}', line)
         has_price = re.search(r'\d+[.,]\d{2}', line)
         
         if has_text and has_price:
-            # 排除總計相關行
-            if any(k.upper() in line.upper() for k in total_keywords + ["MOMS", "NET TOTAL", "VAT"]): continue
+            # 排除掉總額、稅金等「結果行」
+            if any(k.upper() in line.upper() for k in total_keys): continue
             
-            # 清理：移除金額與行首數量
+            # 清理品名
+            # 1. 移除金額以後的所有內容
             name = re.sub(r'\d+[.,]\d{2}.*', '', line).strip()
-            name = re.sub(r'^\d+\s?([xX*]\s?)?', '', name).strip()
+            # 2. 移除行首的數量 (數字、x、*)
+            name = re.sub(r'^[\d\s]+[xX*]?\s*', '', name).strip()
+            
             if len(name) > 3: raw_items.append(name)
 
     unique_items = list(dict.fromkeys(raw_items)) # 去重
-    item_summary = "、".join(unique_items[:3]) + ("等" if unique_items else "")
+    item_summary = "、".join(unique_items[:3]) + ("等" if len(unique_items) > 3 else "等" if unique_items else "")
+    
     return vendor, final_amount, item_summary
+
+def sync_to_sheets(df, user_name, curr_code):
+    try:
+        creds = service_account.Credentials.from_service_account_info(st.secrets["gcp_service_account"])
+        gc = gspread.authorize(creds)
+        sh = gc.open_by_key("1Aw7ti3Yadw9SJ1n6_WoEFU1SQrmDfIGQw6O0oeO_gUM")
+        wks = sh.get_worksheet(0)
+        output_data = []
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        for _, row in df.iterrows():
+            output_data.append([
+                now_str, user_name, row["商店名稱"], row["參考品項"], str(row["消費日期"]),
+                row["外幣金額"], curr_code, row["匯率"], row["原始台幣"], row["手續費"], 
+                row["總計台幣"], row["備註"]
+            ])
+        wks.append_rows(output_data, value_input_option='USER_ENTERED')
+        return True
+    except Exception as e:
+        st.error(f"同步失敗：{e}"); return False
 
 # --- 2. 網頁介面 ---
 st.set_page_config(page_title="支出登錄系統", layout="wide")
 st.title("📊 國外考察支出登錄統計系統")
+
 if 'data' not in st.session_state: st.session_state['data'] = []
 
 with st.expander("👤 步驟 1：基本設定", expanded=True):
@@ -158,7 +179,8 @@ if files:
             client = vision.ImageAnnotatorClient(credentials=creds)
             prog = st.progress(0)
             for idx, f in enumerate(files):
-                res = client.document_text_detection(image=vision.Image(content=f.read()))
+                img_content = f.read()
+                res = client.document_text_detection(image=vision.Image(content=img_content))
                 txt = res.full_text_annotation.text
                 v, a, it = extract_data(txt, p)
                 d = normalize_date_pro(txt, p.get('month_map', {}))
@@ -174,14 +196,16 @@ if st.session_state['data']:
     df = pd.DataFrame(st.session_state['data'])
     df["消費日期"] = pd.to_datetime(df["消費日期"]).dt.date
     edf = st.data_editor(df[["商店名稱", "參考品項", "消費日期", "外幣金額", "匯率", "備註"]], use_container_width=True)
+    
     edf["原始台幣"] = (edf["外幣金額"] * edf["匯率"]).round(0)
     edf["手續費"] = (edf["原始台幣"] * fee).round(0)
     edf["總計台幣"] = edf["原始台幣"] + edf["手續費"]
 
+    st.write("📊 **換算預覽：**")
     for idx, row in edf.iterrows():
         with st.container(border=True):
             ca, cb = st.columns([2, 1])
-            ca.markdown(f"**{row['商店名稱']}** ({row['消費日期']}) \n\n 品項：{row['參考品項'] or '無'}")
+            ca.markdown(f"**{row['商店名稱']}** ({row['消費日期']})\n\n品項：{row['參考品項']}")
             cb.markdown(f"**NT$ {int(row['總計台幣']):,}**")
 
     if st.button("📤 同步至雲端", type="primary", use_container_width=True):
