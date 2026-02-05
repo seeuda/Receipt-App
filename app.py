@@ -36,86 +36,82 @@ def get_exchange_rate(currency_code):
         return round(d1['Close'].iloc[-1] * d2['Close'].iloc[-1], 2)
     except: return 35.0
 
-# --- 2. 核心辨識邏輯 ---
+# --- 2. 核心辨識邏輯 (空間座標化) ---
 
-def normalize_date_pro(text, month_map):
-    # 策略 1: 尋找 DD/MM/YYYY 或 DD.MM.YYYY
-    std = re.findall(r'(\d{1,2})[./-]\d{1,2}[./-](\d{4})', text)
-    if std:
-        for d, y in std:
-            # 這裡簡單判斷月份，因為原始文本可能是 18/06/2025
-            m_match = re.search(rf'{d}[./-](\d{{1,2}})[./-]{y}', text)
-            if m_match:
-                try: return datetime(int(y), int(m_match.group(1)), int(d)).date()
-                except: pass
-
-    # 策略 2: 處理 Dubliner/Salon 特殊月份 (18/Juni/2025, 18 Jun'25)
-    t = text.replace("'", " ").replace("/", " ").replace("-", " ").replace(".", " ")
-    for m_n, m_v in sorted(month_map.items(), key=lambda x: len(x[0]), reverse=True):
-        t = re.sub(rf'{m_n}', f" {m_v} ", t, flags=re.IGNORECASE)
+def normalize_date_pro(text, month_map, target_year):
+    """優先鎖定使用者指定的年度，並回傳日期對應的行索引"""
+    lines = [l.strip() for l in text.splitlines()]
+    target_year_short = str(target_year)[-2:] # '2025' -> '25'
     
-    # 在清理過的文本中找三連數
-    res = re.findall(r'(\d{1,2})\s+(\d{1,2})\s+(\d{2,4})', t)
-    for d_s, m_s, y_s in reversed(res):
-        try:
+    found_date = datetime.now().date()
+    found_idx = -1
+
+    for i, line in enumerate(lines):
+        # 預處理：清除時間與符號
+        t = re.sub(r'\d{1,2}:\d{2}', ' ', line)
+        t = t.replace("'", " ").replace("/", " ").replace("-", " ").replace(".", " ")
+        for m_n, m_v in month_map.items():
+            t = re.sub(rf'\b{m_n}\b', f" {m_v} ", t, flags=re.IGNORECASE)
+        
+        # 尋找包含指定年度的組合
+        matches = re.findall(r'(\d{1,2})\s+(\d{1,2})\s+(\d{2,4})', t)
+        for d_s, m_s, y_s in matches:
             y = int(y_s) if len(y_s) == 4 else int(f"20{y_s}")
-            if 2020 <= y <= 2026: return datetime(y, int(m_s), int(d_s)).date()
-        except: continue
-    return datetime.now().date()
+            if y == int(target_year):
+                try:
+                    found_date = datetime(y, int(m_s), int(d_s)).date()
+                    found_idx = i
+                    return found_date, found_idx
+                except: continue
+    return found_date, found_idx
 
-def extract_data(text, params):
+def extract_data(text, params, date_idx):
+    """利用日期行索引 (date_idx) 鎖定品項區間"""
     lines = [l.strip() for l in text.splitlines() if l.strip()]
-    total_keys = ["TOTAL", "PAYMENT", "IALT", "MOMS", "VAT", "DANKORT", "SUM", "MODTAGET"]
+    total_keys = ["TOTAL", "PAYMENT", "IALT", "MOMS", "VAT", "DANKORT", "SUM", "AMOUNT"]
     
-    # 1. 鎖定總金額 (從後往前找)
-    final_amt = 0.0
-    money_cands = []
+    # 1. 鎖定總金額與其位置 (total_idx)
+    final_amt, total_idx = 0.0, len(lines)
     for i, line in enumerate(lines):
         m = re.findall(r'(-?\d+[.,]\d{2})', line)
-        if m:
-            val = float(m[-1].replace(',', '.'))
-            score = i
-            if any(k in line.upper() for k in total_keys): score += 1000
-            money_cands.append((val, score))
-    if money_cands:
-        final_amt = sorted(money_cands, key=lambda x: x[1], reverse=True)[0][0]
+        if m and any(k in line.upper() for k in total_keys):
+            final_amt = float(m[-1].replace(',', '.'))
+            total_idx = i
+            break
 
-    # 2. 鎖定品項區塊 (避開表頭地址與結尾)
+    # 2. 定義「品項區塊」
+    # 根據你的觀察：品項在日期資訊往中間(總計)的一側
+    if date_idx != -1 and date_idx < total_idx:
+        # 情況 A：日期在上方 (如 Gahon)，從日期後開始抓
+        search_range = lines[date_idx+1 : total_idx]
+    else:
+        # 情況 B：日期在下方 (如 Dubliner) 或沒抓到，從商店名後開始抓
+        search_range = lines[1 : total_idx]
+
     name_q, price_q = [], []
-    header_end_idx = 5 # 預設跳過前 5 行地址雜訊
-    
-    for i, line in enumerate(lines[header_end_idx:]):
-        # 遇到總計關鍵字就停止抓取品項
-        if any(k in line.upper() for k in total_keys): break
-        # 排除包含地址關鍵字或長數字(電話/CVR)的行
-        if len(re.findall(r'\d', line)) > 10 or "CVR" in line.upper() or "TLF" in line.upper() or "KBH" in line.upper():
+    for line in search_range:
+        # 排除雜訊特徵：過長數字(電話/CVR/桌號)
+        if len(re.findall(r'\d', line)) > 10 or "CVR" in line.upper() or "TBL" in line.upper():
             continue
 
         has_text = re.search(r'[A-Za-zÀ-ÿ]{3,}', line)
         prices = re.findall(r'(\d+[.,]\d{2})', line)
 
         if has_text and prices:
-            # 水平模式：品名與金額在同一行
             nm = re.sub(r'\d+[.,]\d{2}.*', '', line)
             nm = re.sub(r'^[\d\s]+[xX*]?\s*', '', nm).strip()
             if len(nm) > 2: name_q.append(nm); price_q.append(prices[-1])
         elif has_text:
-            # 垂直模式：這行只有文字 (品名)
             nm = re.sub(r'^[\d\s]+[xX*]?\s*', '', line).strip()
             if len(nm) > 2: name_q.append(nm)
         elif prices:
-            # 垂直模式：這行只有金額
             price_q.append(prices[-1])
 
-    # 索引配對 (解決 a b c 1 2 3 排序問題)
-    items = []
-    for n, p in zip(name_q, price_queue := price_q):
-        items.append(n)
-    
+    items = [n for n, p in zip(name_q, price_q)]
     item_summary = "、".join(list(dict.fromkeys(items))[:3]) + ("等" if items else "")
     return lines[0], final_amt, item_summary
 
-# --- 3. Streamlit UI ---
+# --- 3. UI 介面 ---
 
 st.set_page_config(page_title="支出登錄系統", layout="wide")
 st.title("📊 國外考察支出登錄統計系統")
@@ -127,7 +123,7 @@ with st.sidebar:
     debug_mode = st.checkbox("🔍 顯示 OCR 文本 (含複製鍵)")
 
 with st.expander("👤 步驟 1：基本設定", expanded=True):
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
     with c1:
         u_opt = load_users() + ["其他"]
         sel_u = st.selectbox("人員", u_opt)
@@ -136,16 +132,20 @@ with st.expander("👤 步驟 1：基本設定", expanded=True):
         cfg = load_all_configs()
         sel_c = st.selectbox("考察國家", list(cfg.keys()))
         p = cfg[sel_c]
+    with c3:
+        # 年度預載功能
+        target_year = st.number_input("考察年度", value=2025, step=1)
         f_rate = get_exchange_rate(p['currency_code'])
         m_rate = st.number_input(f"匯率 ({p['currency_code']})", value=float(f_rate), step=0.01)
-    with c3:
+    with c4:
         fee_pct = st.number_input("手續費 (%)", value=1.5, step=0.1) / 100
+        st.link_button("📂 查看試算表", "https://docs.google.com/spreadsheets/d/1Aw7ti3Yadw9SJ1n6_WoEFU1SQrmDfIGQw6O0oeO_gUM/edit")
 
 st.subheader("📸 步驟 2：上傳收據")
 files = st.file_uploader("批次上傳", accept_multiple_files=True, type=['jpg', 'jpeg', 'png'])
 
 if files:
-    if st.button("🔍 執行 AI 辨識", type="primary", use_container_width=True):
+    if st.button("🔍 執行全自動辨識", type="primary", use_container_width=True):
         new_batch = []
         creds = service_account.Credentials.from_service_account_info(st.secrets["gcp_service_account"])
         client = vision.ImageAnnotatorClient(credentials=creds)
@@ -153,9 +153,13 @@ if files:
             txt = client.document_text_detection(image=vision.Image(content=f.read())).full_text_annotation.text
             if debug_mode:
                 st.write(f"📄 **{f.name}**")
-                st.code(txt) # 這裡右上角有 Copy 鍵
-            v, a, it = extract_data(txt, p)
-            d = normalize_date_pro(txt, p.get('month_map', {}))
+                st.code(txt)
+            
+            # 先跑日期，抓到日期在哪一行
+            d, d_idx = normalize_date_pro(txt, p.get('month_map', {}), target_year)
+            # 再跑品項，利用日期行索引過濾雜訊
+            v, a, it = extract_data(txt, p, d_idx)
+            
             new_batch.append({"商店名稱":v, "參考品項":it, "消費日期":d, "外幣金額":a, "匯率":m_rate, "備註":""})
         st.session_state['data'] = new_batch
 
@@ -163,8 +167,4 @@ if st.session_state['data']:
     st.markdown("---")
     edf = st.data_editor(pd.DataFrame(st.session_state['data']), use_container_width=True)
     total_twd = (edf["外幣金額"] * edf["匯率"] * (1 + fee_pct)).sum()
-    st.metric("批次台幣總計", f"NT$ {int(total_twd):,}")
-    
-    if st.button("📤 同步至雲端", type="primary", use_container_width=True):
-        # 同步函式寫在這裡...
-        st.success("同步成功！"); st.balloons()
+    st.metric("批次預估總台幣", f"NT$ {int(total_twd):,}")
