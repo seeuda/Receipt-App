@@ -44,72 +44,81 @@ def load_users():
     except: return ["預設登錄員"]
 
 def normalize_date_pro(text, month_map):
-    # 1. 將所有非數字、非字母的符號全部轉為空格 (處理 ' / . -)
-    t = re.sub(r"[^a-zA-Z0-9]", " ", text)
-    
-    # 2. 月份替換 (確保 Juni -> 06, Jun -> 06)
-    # 按長度排序，先換 Juni 再換 Jun 避免錯誤
-    sorted_months = sorted(month_map.items(), key=lambda x: len(x[0]), reverse=True)
-    for m_name, m_num in sorted_months:
-        t = re.sub(rf'{m_name}', f" {m_num} ", t, flags=re.IGNORECASE)
-    
-    # 3. 尋找三組數字的組合
-    # 支援: 18 06 2025 或 18 06 25
-    matches = re.findall(r'(\d{1,2})\s+(\d{1,2})\s+(\d{2,4})', t)
-    
-    for d_str, m_str, y_str in reversed(matches):
+    # 1. 嘗試尋找 YYYY/MM/DD 或 DD/MM/YYYY (最穩定的標準格式)
+    std_pattern = r'(\d{2,4})[./\s- ]+(\d{1,2})[./\s- ]+(\d{2,4})'
+    std_matches = list(re.finditer(std_pattern, text))
+    for m in reversed(std_matches):
+        g = m.groups()
         try:
-            day, month = int(d_str), int(m_str)
-            year = int(y_str) if len(y_str) == 4 else int(f"20{y_str}")
-            if 2020 <= year <= 2026 and 1 <= month <= 12 and 1 <= day <= 31:
+            # 判斷哪一個是年 (2020-2026)
+            parts = [int(g[0]), int(g[1]), int(g[2])]
+            year = month = day = 0
+            if 2020 <= parts[0] <= 2026: year, month, day = parts[0], parts[1], parts[2]
+            elif 2020 <= parts[2] <= 2026: year, month, day = parts[2], parts[1], parts[0]
+            if 1 <= month <= 12 and 1 <= day <= 31:
                 return datetime(year, month, day).date()
         except: continue
+
+    # 2. 月份映射救援 (針對 18 Jun'25 或 18/Juni/2025)
+    t = text.replace("'", " ").replace("/", " ").replace("-", " ")
+    for m_name, m_num in sorted(month_map.items(), key=lambda x: len(x[0]), reverse=True):
+        t = re.sub(rf'{m_name}', f" {m_num} ", t, flags=re.IGNORECASE)
+    
+    rescue_pattern = r'(\d{1,2})\s+(\d{1,2})\s+(\d{2,4})'
+    rescue_matches = list(re.finditer(rescue_pattern, t))
+    for m in reversed(rescue_matches):
+        g = m.groups()
+        try:
+            d, m_val = int(g[0]), int(g[1])
+            y_str = g[2]
+            y = int(y_str) if len(y_str) == 4 else int(f"20{y_str}")
+            if 2020 <= y <= 2026 and 1 <= m_val <= 12 and 1 <= d <= 31:
+                return datetime(y, m_val, d).date()
+        except: continue
+
     return datetime.now().date()
 
 def extract_data(text, params):
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     vendor = lines[0] if lines else "未知商店"
-    curr = params['currency_code'].upper()
-    total_keys = params.get('keywords', []) + ["TOTAL", "PAYMENT", "SUBTOTAL", "MOMS", "VAT", "DANKORT", "ALT", "DKK", "EUR"]
+    total_keys = params.get('keywords', []) + ["TOTAL", "PAYMENT", "SUBTOTAL", "MOMS", "VAT", "DANKORT", "ALT", "Ialt"]
 
-    # 1. 金額辨識
+    # 1. 金額辨識 (權重系統)
     candidates = []
     for i, line in enumerate(lines):
+        # 尋找所有 0.00 格式
         found = re.findall(r'(\d+[.,]\d{2})', line)
         for val_str in found:
             try:
                 val = float(val_str.replace(',', '.'))
-                score = i * 2 # 越後面的金額分數越高
+                score = i
                 if any(k.upper() in line.upper() for k in total_keys): score += 500
-                if curr in line.upper(): score += 300
-                if "MOMS" in line.upper() or "TAX" in line.upper(): score -= 600
+                if "MOMS" in line.upper(): score -= 400
                 candidates.append({'val': val, 'score': score})
             except: continue
     final_amount = sorted(candidates, key=lambda x: x['score'], reverse=True)[0]['val'] if candidates else 0.0
 
-    # 2. 品項辨識 (支援特殊字元: ø, æ, å)
+    # 2. 品項辨識 (北歐特殊字元救援)
     raw_items = []
     for line in lines[1:]:
-        # 排除稅號、電話等長數字 (超過 10 個數字)
+        # 排除地址/長數字/純日期
         if len(re.findall(r'\d', line)) > 10: continue
         
-        # 特徵：包含文字（含北歐字元）+ 結尾有金額
-        # [A-Za-zÀ-ÿ] 涵蓋了大部分歐洲特殊字元
+        # 特徵：包含歐洲文字 [A-Za-zÀ-ÿ] 且包含金額
         has_text = re.search(r'[A-Za-zÀ-ÿ]{3,}', line)
-        price_match = re.search(r'(\d+[.,]\d{2})[\s]*[A-Za-z]*$', line)
+        has_price = re.search(r'\d+[.,]\d{2}', line)
         
-        if has_text and price_match:
-            # 排除總計、幣別等行
+        if has_text and has_price:
             if any(k.upper() in line.upper() for k in total_keys): continue
             
-            # 提取品名：取金額前的內容
-            name = line[:price_match.start()].strip()
-            # 移除行首數量 (如 1, 2x)
-            name = re.sub(r'^\d+\s?([xX*]\s?)?', '', name).strip()
-            # 處理 Dubliner 一行多個金額：移除中間可能剩下的金額
-            name = re.sub(r'\d+[.,]\d{2}.*', '', name).strip()
+            # 取得該行中「最後一個金額」之前的所有內容
+            parts = re.split(r'\d+[.,]\d{2}', line)
+            name = parts[0].strip()
             
-            if len(name) > 2: raw_items.append(name)
+            # 清理：移除數量標記 (如 1, 2 x)
+            name = re.sub(r'^\d+\s?([xX*]\s?)?', '', name).strip()
+            
+            if len(name) > 3: raw_items.append(name)
 
     unique_items = list(dict.fromkeys(raw_items))
     item_summary = "、".join(unique_items[:3]) + ("等" if unique_items else "")
@@ -161,7 +170,8 @@ if files:
             client = vision.ImageAnnotatorClient(credentials=creds)
             prog = st.progress(0)
             for idx, f in enumerate(files):
-                res = client.document_text_detection(image=vision.Image(content=f.read()))
+                img_content = f.read()
+                res = client.document_text_detection(image=vision.Image(content=img_content))
                 txt = res.full_text_annotation.text
                 v, a, it = extract_data(txt, p)
                 d = normalize_date_pro(txt, p.get('month_map', {}))
