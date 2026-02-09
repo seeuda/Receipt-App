@@ -8,6 +8,9 @@
   "date_order": "DMY",
   "address_regex": "(\\d{4}\\s+[A-Z])|(Gasse)|(Str\\.)",
   "tax_symbols": "([A-Z]\\b)",
+  "header_skips": [
+    "RECHNUNG"
+  ],
   "keywords": [
     "GESAMT"
   ],

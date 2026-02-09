@@ -6,16 +6,14 @@
   "decimal_sep": ".",
   "thousand_sep": ",",
   "date_order": "DMY",
-  "address_regex": "(\\d{6})|(Street)|(Road)|(Ave)",
-  "tax_symbols": "(\\*)",
+  "address_regex": "(\\d{6})|(Street)|(Road)|(Ave)|(Lane)",
   "keywords": [
-    "TOTAL"
-  ],
-  "exclude_keywords": [
-    "GST"
+    "TOTAL",
+    "NET"
   ],
   "stop_keywords": [
-    "THANK"
+    "THANK",
+    "GST"
   ],
   "month_map": {
     "Jan": "01"

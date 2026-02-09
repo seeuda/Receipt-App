@@ -7,15 +7,13 @@
   "thousand_sep": ",",
   "date_order": "DMY",
   "address_regex": "(เขต)|(แขวง)|(จังหวัด)",
-  "tax_symbols": "(\\*)",
   "keywords": [
-    "รวม"
-  ],
-  "exclude_keywords": [
-    "VAT"
+    "รวม",
+    "ยอด"
   ],
   "stop_keywords": [
-    "ขอบ"
+    "ขอบ",
+    "VAT"
   ],
   "month_map": {
     "ม.ค.": "01"

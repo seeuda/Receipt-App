@@ -7,15 +7,13 @@
   "thousand_sep": ".",
   "date_order": "DMY",
   "address_regex": "(Quận)|(Huyện)|(Phường)",
-  "tax_symbols": "(\\*)",
   "keywords": [
-    "TỔNG"
-  ],
-  "exclude_keywords": [
-    "VAT"
+    "TỔNG",
+    "THANH TOÁN"
   ],
   "stop_keywords": [
-    "CẢM"
+    "CẢM",
+    "VAT"
   ],
   "month_map": {
     "Tháng 1": "01"

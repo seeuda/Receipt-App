@@ -7,13 +7,13 @@
   "thousand_sep": ",",
   "date_order": "DMY",
   "address_regex": "(\\d{6})|(Plot)|(Sector)",
-  "month_map": {
-    "Jan": "01"
-  },
   "keywords": [
     "TOTAL"
   ],
   "stop_keywords": [
     "THANK"
-  ]
+  ],
+  "month_map": {
+    "Jan": "01"
+  }
 }

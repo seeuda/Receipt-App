@@ -7,13 +7,13 @@
   "thousand_sep": ",",
   "date_order": "DMY",
   "address_regex": "(Street)|(St\\.)",
-  "month_map": {
-    "ינו": "01"
-  },
   "keywords": [
     "סה\"כ"
   ],
   "stop_keywords": [
     "תודה"
-  ]
+  ],
+  "month_map": {
+    "ינו": "01"
+  }
 }

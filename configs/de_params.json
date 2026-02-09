@@ -6,14 +6,22 @@
   "decimal_sep": ",",
   "thousand_sep": ".",
   "date_order": "DMY",
-  "address_regex": "(\\d{5}\\s+[A-Z])|(Str\\.)|(Ring)|(Platz)|(Tel:)|(St\\.-Nr)",
+  "address_regex": "(\\d{5}\\s+[A-Z])|(Str\\.)|(Strasse)|(Ring)|(Platz)|(Gasse)|(Tel:)|(St\\.-Nr)",
   "tax_symbols": "([A-Z]\\b)",
+  "header_skips": [
+    "RECHNUNG",
+    "QUITTUNG",
+    "BELEG",
+    "KASSENBELEG"
+  ],
   "keywords": [
     "GESAMT",
-    "SUMME"
+    "SUMME",
+    "TOTAL"
   ],
   "stop_keywords": [
-    "VIELEN DANK"
+    "VIELEN DANK",
+    "STEUER"
   ],
   "month_map": {
     "Jan": "01"

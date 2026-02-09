@@ -7,12 +7,8 @@
   "thousand_sep": ".",
   "date_order": "DMY",
   "address_regex": "(Jalan)|(Kec\\.)|(Kab\\.)",
-  "tax_symbols": "(\\*)",
   "keywords": [
     "TOTAL"
-  ],
-  "exclude_keywords": [
-    "PAJAK"
   ],
   "stop_keywords": [
     "TERIMA"

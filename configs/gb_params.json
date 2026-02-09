@@ -7,6 +7,9 @@
   "thousand_sep": ",",
   "date_order": "DMY",
   "address_regex": "([A-Z]{1,2}\\d[A-Z\\d]?\\s\\d[A-Z]{2})|(Street)|(Rd\\.)",
+  "header_skips": [
+    "INVOICE"
+  ],
   "keywords": [
     "TOTAL"
   ],

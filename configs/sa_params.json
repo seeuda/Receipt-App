@@ -7,13 +7,13 @@
   "thousand_sep": ",",
   "date_order": "DMY",
   "address_regex": "(District)|(St\\.)",
-  "month_map": {
-    "ينا": "01"
-  },
   "keywords": [
     "الإجمالي"
   ],
   "stop_keywords": [
     "شكرا"
-  ]
+  ],
+  "month_map": {
+    "ينا": "01"
+  }
 }

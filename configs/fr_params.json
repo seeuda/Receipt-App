@@ -8,6 +8,9 @@
   "date_order": "DMY",
   "address_regex": "(\\d{5})|(Rue)|(Ave)|(Boulevard)",
   "tax_symbols": "(\\*)",
+  "header_skips": [
+    "FACTURE"
+  ],
   "keywords": [
     "TOTAL"
   ],

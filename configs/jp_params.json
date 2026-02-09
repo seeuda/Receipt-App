@@ -6,16 +6,20 @@
   "decimal_sep": ".",
   "thousand_sep": ",",
   "date_order": "YMD",
-  "address_regex": "(丁目|番地|号|県|市|区|町)",
+  "address_regex": "(丁目|番地|号|県|市|区|町|道)",
   "tax_symbols": "(\\*)",
-  "keywords": [
-    "合計"
+  "header_skips": [
+    "領収",
+    "受領",
+    "お買上"
   ],
-  "exclude_keywords": [
-    "税"
+  "keywords": [
+    "合計",
+    "お預り"
   ],
   "stop_keywords": [
-    "有難う"
+    "有難う",
+    "税"
   ],
   "month_map": {
     "1月": "01"

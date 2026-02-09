@@ -7,15 +7,17 @@
   "thousand_sep": ",",
   "date_order": "YMD",
   "address_regex": "(동|로|길|구|시|도)",
-  "tax_symbols": "(\\*)",
-  "keywords": [
-    "합계"
+  "header_skips": [
+    "영수증",
+    "신용카드"
   ],
-  "exclude_keywords": [
-    "부가세"
+  "keywords": [
+    "합계",
+    "금액"
   ],
   "stop_keywords": [
-    "영수증"
+    "감사합니다",
+    "부가세"
   ],
   "month_map": {
     "1월": "01"
