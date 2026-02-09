@@ -205,10 +205,6 @@ def main():
 
     with st.sidebar:
         st.header("🏢 專案授權管理")
-        st.info("💡 新建專案？請複製範本建立歸屬試算表並完成授權。")
-        st.link_button("📥 連結範本建立歸屬試算表", TEMPLATE_URL, use_container_width=True)
-        st.markdown("---")
-        
         if project_registry:
             selected_project = st.selectbox("1. 選擇執行專案", list(project_registry.keys()))
             target_sheet_id = project_registry[selected_project]
@@ -217,6 +213,10 @@ def main():
             st.warning("⚠️ 查無授權專案。"); target_sheet_id = None; project_users = []
 
         st.markdown("---")
+        st.info("💡 沒有您的專案？請複製範本、建立新專案並完成授權。")
+        st.link_button("📥 連結範本建立歸屬試算表", TEMPLATE_URL, use_container_width=True)
+        st.markdown("---")
+        
         st.header("⚙️ 辨識與控制")
         debug_mode = st.checkbox("🔍 OCR 偵錯模式")
         target_year = st.number_input("📅 年度鎖定", value=2025)
