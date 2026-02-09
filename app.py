@@ -32,16 +32,36 @@ def get_gspread_client():
     return gspread.authorize(creds)
 
 def load_project_registry() -> Dict[str, str]:
-    """從管理員註冊表載入授權專案 (讀取第一張工作表)"""
+    """
+    智慧載入註冊表：自動適應 Google 表單產生的長標題。
+    """
     try:
         gc = get_gspread_client()
         registry_id = st.secrets["admin_registry_id"]
         sh = gc.open_by_key(registry_id)
-        # 預設讀取第一張工作表 (通常為表單回應頁面)
+        # 讀取第一張工作表 (表單回應頁面)
         data = sh.get_worksheet(0).get_all_records()
-        return {r["專案名稱"]: r["試算表 ID"] for r in data if str(r.get("啟用狀態", "")).strip().capitalize() == "True"}
+        
+        if not data: return {}
+
+        # 智慧尋找對應的 Key 名稱 (解決括號與提示文字問題)
+        all_keys = data[0].keys()
+        key_name = next((k for k in all_keys if "專案名稱" in k), "專案名稱")
+        key_id = next((k for k in all_keys if "試算表 ID" in k), "試算表 ID")
+        key_status = next((k for k in all_keys if "啟用狀態" in k), "啟用狀態")
+
+        projects = {}
+        for r in data:
+            # 取得狀態並統一轉為大寫字串進行比較
+            status_val = str(r.get(key_status, "")).strip().upper()
+            if status_val == "TRUE":
+                p_name = r.get(key_name)
+                p_id = r.get(key_id)
+                if p_name and p_id:
+                    projects[p_name] = p_id
+        return projects
     except Exception as e:
-        st.error(f"❌ 專案註冊表載入失敗。請檢查 admin_registry_id 是否正確且已授權。錯誤: {e}")
+        st.error(f"❌ 註冊表判讀失敗。錯誤詳情: {e}")
         return {}
 
 def load_project_users(target_sheet_id: str) -> List[str]:
@@ -51,7 +71,7 @@ def load_project_users(target_sheet_id: str) -> List[str]:
         sh = gc.open_by_key(target_sheet_id)
         try:
             wks = sh.worksheet("人員名單")
-            names = wks.col_values(1)[1:]  # 取得 A 欄，跳過第一列標題
+            names = wks.col_values(1)[1:]  # 跳過標題
             return [n for n in names if n.strip()]
         except gspread.exceptions.WorksheetNotFound:
             return []
@@ -59,7 +79,6 @@ def load_project_users(target_sheet_id: str) -> List[str]:
         return []
 
 def load_all_configs() -> Dict:
-    """載入 configs 內的國家參數"""
     configs = {}
     for f in glob.glob("configs/*.json"):
         if "users.json" in f: continue 
@@ -73,7 +92,6 @@ def load_all_configs() -> Dict:
 
 @st.cache_data(ttl=3600)
 def get_exchange_rate(currency_code: str) -> float:
-    """獲取匯率，支援 5 日歷史備援"""
     if currency_code == "TWD": return 1.0
     try:
         ticker = yf.Ticker(f"{currency_code}TWD=X")
@@ -83,6 +101,7 @@ def get_exchange_rate(currency_code: str) -> float:
     except Exception: return 35.0
 
 # --- II. AI 辨識核心邏輯 (Logic Engine) ---
+# [此部分邏輯維持穩定，無需變動]
 
 def is_unlikely_item(text: str, params: Dict) -> bool:
     t = text.strip().upper()
