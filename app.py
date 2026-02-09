@@ -92,13 +92,37 @@ def load_all_configs() -> Dict:
 
 @st.cache_data(ttl=3600)
 def get_exchange_rate(currency_code: str) -> float:
+    """
+    超強韌匯率抓取：擴大回溯至 1 個月，防止市場換日期間的 API 空值問題。
+    """
     if currency_code == "TWD": return 1.0
+    
+    # 優先嘗試直接對換 (如 DKKTWD=X)
+    tickers_to_try = [f"{currency_code}TWD=X", f"{currency_code}USD=X"]
+    
     try:
-        ticker = yf.Ticker(f"{currency_code}TWD=X")
-        hist = ticker.history(period="5d")
-        if not hist.empty: return round(hist['Close'].iloc[-1], 2)
+        # 1. 直接對換嘗試
+        ticker = yf.Ticker(tickers_to_try[0])
+        # 使用 1mo 確保在任何交接時段都有歷史數據可抓
+        hist = ticker.history(period="1mo") 
+        if not hist.empty:
+            # 抓取最後一個非空值的收盤價
+            valid_closes = hist['Close'].dropna()
+            if not valid_closes.empty:
+                return round(valid_closes.iloc[-1], 2)
+
+        # 2. 交叉匯率備援 (Currency -> USD -> TWD)
+        c_usd_hist = yf.Ticker(tickers_to_try[1]).history(period="1mo")
+        u_twd_hist = yf.Ticker("USDTWD=X").history(period="1mo")
+        
+        if not c_usd_hist.empty and not u_twd_hist.empty:
+            c_usd = c_usd_hist['Close'].dropna().iloc[-1]
+            u_twd = u_twd_hist['Close'].dropna().iloc[-1]
+            return round(c_usd * u_twd, 2)
+            
+        return 35.0 # 最終保底值
+    except Exception:
         return 35.0
-    except Exception: return 35.0
 
 # --- II. AI 辨識核心邏輯 (Logic Engine) ---
 # [此部分邏輯維持穩定，無需變動]
