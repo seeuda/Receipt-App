@@ -1,19 +1,36 @@
 {
   "country": "葡萄牙",
+  "continent": "歐洲",
   "currency_code": "EUR",
   "keywords": [
-    "TOTAL"
+    "TOTAL",
+    "VALOR A PAGAR",
+    "TOTAL PAGO"
   ],
   "exclude_keywords": [
-    "IVA"
+    "IVA",
+    "SUBTOTAL",
+    "TAXA",
+    "TAX",
+    "VAT"
   ],
   "stop_keywords": [
-    "OBRIGADO"
+    "OBRIGADO",
+    "VOLTE SEMPRE",
+    "EXTRATO",
+    "VISA"
   ],
   "header_headers": [
-    "QTD"
+    "DESCRIÇÃO",
+    "QTD",
+    "PREÇO",
+    "DATA",
+    "TBL"
   ],
   "month_map": {
-    "Jan": "01"
+    "Jan": "01",
+    "Fev": "02",
+    "Mar": "03",
+    "Dez": "12"
   }
 }

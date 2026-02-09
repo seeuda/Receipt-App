@@ -1,19 +1,34 @@
 {
   "country": "越南",
+  "continent": "亞洲",
   "currency_code": "VND",
   "keywords": [
-    "TỔNG CỘNG"
+    "TỔNG CỘNG",
+    "THANH TOÁN",
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "VAT"
+    "VAT",
+    "THUẾ",
+    "PHÍ DỊCH VỤ",
+    "SUBTOTAL"
   ],
   "stop_keywords": [
-    "CẢM ƠN"
+    "CẢM ƠN",
+    "QUÝ KHÁCH",
+    "VISA",
+    "MASTERCARD"
   ],
   "header_headers": [
-    "SL"
+    "SL",
+    "TÊN HÀNG",
+    "ĐƠN GIÁ",
+    "THÀNH TIỀN",
+    "NGÀY"
   ],
   "month_map": {
-    "Tháng 1": "01"
+    "Tháng 1": "01",
+    "Tháng 2": "02",
+    "Tháng 12": "12"
   }
 }

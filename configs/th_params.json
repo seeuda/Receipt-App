@@ -1,19 +1,36 @@
 {
   "country": "泰國",
+  "continent": "亞洲",
   "currency_code": "THB",
   "keywords": [
-    "รวม"
+    "รวม",
+    "ยอดรวม",
+    "TOTAL",
+    "NET AMOUNT"
   ],
   "exclude_keywords": [
-    "VAT"
+    "ภาษี",
+    "VAT",
+    "SUBTOTAL",
+    "SERVICE CHARGE"
   ],
   "stop_keywords": [
-    "ขอบคุณ"
+    "ขอบคุณ",
+    "THANK YOU",
+    "VISA",
+    "MASTERCARD"
   ],
   "header_headers": [
-    "รายการ"
+    "รายการ",
+    "จำนวน",
+    "ราคา",
+    "DATE",
+    "INV",
+    "TBL"
   ],
   "month_map": {
-    "ม.ค.": "01"
+    "ม.ค.": "01",
+    "ก.พ.": "02",
+    "ธ.ค.": "12"
   }
 }

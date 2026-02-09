@@ -1,21 +1,41 @@
 {
   "country": "法國",
+  "continent": "歐洲",
   "currency_code": "EUR",
   "keywords": [
     "TOTAL",
-    "TTC"
+    "SOMME",
+    "A PAYER",
+    "TTC",
+    "MONTANT"
   ],
   "exclude_keywords": [
+    "HT",
     "TVA",
-    "HT"
+    "NET",
+    "SOUS-TOTAL",
+    "TAX",
+    "VAT"
   ],
   "stop_keywords": [
-    "MERCI"
+    "MERCI",
+    "VISA",
+    "CARTE",
+    "A BIENTOT",
+    "SIRET"
   ],
   "header_headers": [
-    "QTE"
+    "PRODUIT",
+    "QTE",
+    "PRIX",
+    "DATE",
+    "TICKET",
+    "TABLE"
   ],
   "month_map": {
-    "Jan": "01"
+    "Janvier": "01",
+    "Février": "02",
+    "Mars": "03",
+    "Décembre": "12"
   }
 }

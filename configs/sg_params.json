@@ -1,19 +1,39 @@
 {
   "country": "新加坡",
+  "continent": "亞洲",
   "currency_code": "SGD",
   "keywords": [
-    "TOTAL"
+    "TOTAL",
+    "TOTAL AMOUNT",
+    "GRAND TOTAL",
+    "PAID"
   ],
   "exclude_keywords": [
-    "GST"
+    "GST",
+    "SERVICE CHARGE",
+    "SUBTOTAL",
+    "TAXABLE"
   ],
   "stop_keywords": [
-    "THANK YOU"
+    "THANK YOU",
+    "VISA",
+    "MASTERCARD",
+    "NETS",
+    "WWW."
   ],
   "header_headers": [
-    "QTY"
+    "QTY",
+    "ITEM",
+    "PRICE",
+    "DATE",
+    "RECEIPT",
+    "CHK",
+    "TBL"
   ],
   "month_map": {
-    "Jan": "01"
+    "Jan": "01",
+    "Feb": "02",
+    "Mar": "03",
+    "Dec": "12"
   }
 }

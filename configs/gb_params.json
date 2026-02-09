@@ -1,19 +1,39 @@
 {
   "country": "英國",
+  "continent": "歐洲",
   "currency_code": "GBP",
   "keywords": [
-    "TOTAL"
+    "TOTAL",
+    "AMOUNT DUE",
+    "BALANCE",
+    "GRAND TOTAL"
   ],
   "exclude_keywords": [
-    "VAT"
+    "VAT",
+    "SUBTOTAL",
+    "NET",
+    "TAXABLE",
+    "TAX"
   ],
   "stop_keywords": [
-    "THANK YOU"
+    "THANK YOU",
+    "THANKS",
+    "VISA",
+    "MASTERCARD",
+    "AUTH"
   ],
   "header_headers": [
-    "QTY"
+    "QTY",
+    "ITEM",
+    "PRICE",
+    "DATE",
+    "RECEIPT",
+    "TBL"
   ],
   "month_map": {
-    "Jan": "01"
+    "Jan": "01",
+    "Feb": "02",
+    "Mar": "03",
+    "Dec": "12"
   }
 }

@@ -1,19 +1,37 @@
 {
   "country": "荷蘭",
+  "continent": "歐洲",
   "currency_code": "EUR",
   "keywords": [
-    "TOTAAL"
+    "TOTAAL",
+    "BEDRAG",
+    "SUBTOTAAL",
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "BTW"
+    "BTW",
+    "NETTO",
+    "TAX",
+    "VAT"
   ],
   "stop_keywords": [
-    "BEDANKT"
+    "BEDANKT",
+    "TOT ZIENS",
+    "VISA",
+    "MASTERCARD"
   ],
   "header_headers": [
-    "AANTAL"
+    "AANTAL",
+    "OMS",
+    "PRIJS",
+    "DATUM",
+    "BON",
+    "TBL"
   ],
   "month_map": {
-    "Jan": "01"
+    "Jan": "01",
+    "Feb": "02",
+    "Maart": "03",
+    "Dec": "12"
   }
 }

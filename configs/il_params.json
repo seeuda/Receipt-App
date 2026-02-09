@@ -1,0 +1,34 @@
+{
+  "country": "以色列",
+  "continent": "亞洲",
+  "currency_code": "ILS",
+  "keywords": [
+    "סה\"כ",
+    "TOTAL",
+    "AMOUNT DUE"
+  ],
+  "exclude_keywords": [
+    "מע\"מ",
+    "TAX",
+    "VAT",
+    "SUBTOTAL"
+  ],
+  "stop_keywords": [
+    "תודה",
+    "THANK YOU",
+    "VISA",
+    "MASTERCARD"
+  ],
+  "header_headers": [
+    "כמות",
+    "פריט",
+    "מחיר",
+    "תאריך",
+    "TBL"
+  ],
+  "month_map": {
+    "ינו": "01",
+    "פבר": "02",
+    "דצמ": "12"
+  }
+}

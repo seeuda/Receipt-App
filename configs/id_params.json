@@ -1,36 +1,36 @@
 {
-  "country": "阿聯",
+  "country": "印尼",
   "continent": "亞洲",
-  "currency_code": "AED",
+  "currency_code": "IDR",
   "keywords": [
     "TOTAL",
-    "NET AMOUNT",
-    "GRAND TOTAL",
-    "الإجمالي"
+    "JUMLAH",
+    "GRAND TOTAL"
   ],
   "exclude_keywords": [
+    "PAJAK",
     "VAT",
-    "TAX",
+    "PB1",
     "SUBTOTAL",
-    "الضريبة"
+    "SERVICE CHARGE"
   ],
   "stop_keywords": [
+    "TERIMA KASIH",
     "THANK YOU",
     "VISA",
-    "MASTERCARD",
-    "شكرا"
+    "MASTERCARD"
   ],
   "header_headers": [
     "QTY",
     "ITEM",
-    "PRICE",
+    "HARGA",
     "DATE",
-    "TRN",
+    "STR",
     "TBL"
   ],
   "month_map": {
     "Jan": "01",
     "Feb": "02",
-    "Dec": "12"
+    "Des": "12"
   }
 }

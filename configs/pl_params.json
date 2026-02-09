@@ -1,0 +1,36 @@
+{
+  "country": "波蘭",
+  "continent": "歐洲",
+  "currency_code": "PLN",
+  "keywords": [
+    "SUMA",
+    "RAZEM",
+    "DO ZAPŁATY",
+    "TOTAL"
+  ],
+  "exclude_keywords": [
+    "VAT",
+    "NETTO",
+    "TAX",
+    "PTU"
+  ],
+  "stop_keywords": [
+    "DZIEKUJEMY",
+    "ZAPRASZAMY",
+    "VISA",
+    "AUTH"
+  ],
+  "header_headers": [
+    "ILOSC",
+    "NAZWA",
+    "CENA",
+    "DATA",
+    "TBL"
+  ],
+  "month_map": {
+    "Sty": "01",
+    "Lut": "02",
+    "Mar": "03",
+    "Gru": "12"
+  }
+}

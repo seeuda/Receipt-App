@@ -1,34 +1,27 @@
 {
-  "country": "西班牙",
-  "continent": "歐洲",
-  "currency_code": "EUR",
+  "country": "墨西哥",
+  "continent": "美洲",
+  "currency_code": "MXN",
   "keywords": [
     "TOTAL",
-    "IMPORTE",
-    "TOTAL FACTURA",
-    "TOTAL EUR"
+    "TOTAL A PAGAR",
+    "IMPORTE TOTAL"
   ],
   "exclude_keywords": [
     "IVA",
-    "NETO",
-    "BASE",
     "SUBTOTAL",
-    "TAX",
-    "VAT"
+    "IMPUESTO"
   ],
   "stop_keywords": [
     "GRACIAS",
-    "VISITA",
     "VISA",
-    "MASTERCARD",
-    "WWW."
+    "MASTERCARD"
   ],
   "header_headers": [
     "CANT",
     "CONCEPTO",
     "PRECIO",
     "FECHA",
-    "FACTURA",
     "TBL"
   ],
   "month_map": {

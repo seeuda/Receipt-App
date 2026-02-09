@@ -1,19 +1,35 @@
 {
   "country": "印度",
+  "continent": "亞洲",
   "currency_code": "INR",
   "keywords": [
-    "TOTAL"
+    "TOTAL",
+    "NET AMOUNT",
+    "GRAND TOTAL"
   ],
   "exclude_keywords": [
-    "GST"
+    "GST",
+    "CGST",
+    "SGST",
+    "SUBTOTAL",
+    "SERVICE CHARGE"
   ],
   "stop_keywords": [
-    "THANK YOU"
+    "THANK YOU",
+    "VISA",
+    "MASTERCARD",
+    "WWW."
   ],
   "header_headers": [
-    "QTY"
+    "QTY",
+    "DESCRIPTION",
+    "RATE",
+    "AMOUNT",
+    "DATE"
   ],
   "month_map": {
-    "Jan": "01"
+    "Jan": "01",
+    "Feb": "02",
+    "Dec": "12"
   }
 }

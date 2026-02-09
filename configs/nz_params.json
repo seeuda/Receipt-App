@@ -1,19 +1,33 @@
 {
   "country": "紐西蘭",
+  "continent": "大洋洲",
   "currency_code": "NZD",
   "keywords": [
-    "TOTAL"
+    "TOTAL",
+    "AMOUNT DUE",
+    "GRAND TOTAL"
   ],
   "exclude_keywords": [
-    "GST"
+    "GST",
+    "SUBTOTAL",
+    "TAXABLE"
   ],
   "stop_keywords": [
-    "THANK YOU"
+    "THANK YOU",
+    "VISA",
+    "MASTERCARD"
   ],
   "header_headers": [
-    "QTY"
+    "QTY",
+    "ITEM",
+    "PRICE",
+    "DATE",
+    "TBL"
   ],
   "month_map": {
-    "Jan": "01"
+    "Jan": "01",
+    "Feb": "02",
+    "Mar": "03",
+    "Dec": "12"
   }
 }

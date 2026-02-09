@@ -1,36 +1,33 @@
 {
-  "country": "阿聯",
-  "continent": "亞洲",
-  "currency_code": "AED",
+  "country": "愛爾蘭",
+  "continent": "歐洲",
+  "currency_code": "EUR",
   "keywords": [
     "TOTAL",
-    "NET AMOUNT",
-    "GRAND TOTAL",
-    "الإجمالي"
+    "AMOUNT DUE",
+    "BALANCE"
   ],
   "exclude_keywords": [
     "VAT",
-    "TAX",
     "SUBTOTAL",
-    "الضريبة"
+    "TAX"
   ],
   "stop_keywords": [
     "THANK YOU",
     "VISA",
-    "MASTERCARD",
-    "شكرا"
+    "AUTH"
   ],
   "header_headers": [
     "QTY",
     "ITEM",
     "PRICE",
     "DATE",
-    "TRN",
     "TBL"
   ],
   "month_map": {
     "Jan": "01",
     "Feb": "02",
+    "Mar": "03",
     "Dec": "12"
   }
 }

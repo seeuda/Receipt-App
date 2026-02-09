@@ -1,20 +1,35 @@
 {
   "country": "加拿大",
+  "continent": "美洲",
   "currency_code": "CAD",
   "keywords": [
-    "TOTAL"
+    "TOTAL",
+    "AMOUNT DUE",
+    "GRAND TOTAL"
   ],
   "exclude_keywords": [
     "GST",
-    "HST"
+    "HST",
+    "PST",
+    "SUBTOTAL",
+    "TAX"
   ],
   "stop_keywords": [
-    "THANK YOU"
+    "THANK YOU",
+    "VISA",
+    "AUTH"
   ],
   "header_headers": [
-    "QTY"
+    "QTY",
+    "ITEM",
+    "PRICE",
+    "DATE",
+    "TBL"
   ],
   "month_map": {
-    "Jan": "01"
+    "Jan": "01",
+    "Feb": "02",
+    "Mar": "03",
+    "Dec": "12"
   }
 }
