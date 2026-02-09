@@ -9,16 +9,21 @@ from PIL import Image
 import yfinance as yf
 from typing import Dict, List, Tuple, Optional
 
-# --- I. 核心數據與匯率引擎 ---
+# --- I. 數據中心與匯率引擎 (Data & FX Engine) ---
 
 def init_session() -> None:
-    if 'data' not in st.session_state: st.session_state['data'] = []
-    if 'processed_hashes' not in st.session_state: st.session_state['processed_hashes'] = set()
+    """初始化工作區狀態，維持資料連續性"""
+    if 'data' not in st.session_state: 
+        st.session_state['data'] = []
+    if 'processed_hashes' not in st.session_state: 
+        st.session_state['processed_hashes'] = set()
 
 def calculate_hash(file_content: bytes) -> str:
+    """計算檔案指紋以防止重複辨識"""
     return hashlib.md5(file_content).hexdigest()
 
 def get_gspread_client():
+    """授權並取得 Google Sheets 客戶端"""
     creds_info = st.secrets["gcp_service_account"]
     creds = service_account.Credentials.from_service_account_info(
         creds_info, 
@@ -28,6 +33,7 @@ def get_gspread_client():
 
 @st.cache_data(ttl=3600)
 def get_rate_by_date(currency_code: str, target_date: datetime.date) -> float:
+    """依據日期檢索歷史匯率，支援假日回溯機制"""
     if currency_code == "TWD": return 1.0
     try:
         ticker = yf.Ticker(f"{currency_code}TWD=X")
@@ -39,6 +45,7 @@ def get_rate_by_date(currency_code: str, target_date: datetime.date) -> float:
     except Exception: return 35.0
 
 def load_project_registry() -> Dict[str, str]:
+    """載入管理後台的專案清單"""
     try:
         gc = get_gspread_client()
         sh = gc.open_by_key(st.secrets["admin_registry_id"])
@@ -52,6 +59,7 @@ def load_project_registry() -> Dict[str, str]:
     except Exception: return {}
 
 def load_project_users(target_sheet_id: str) -> List[str]:
+    """載入特定專案的人員名單"""
     try:
         gc = get_gspread_client()
         sh = gc.open_by_key(target_sheet_id)
@@ -61,6 +69,7 @@ def load_project_users(target_sheet_id: str) -> List[str]:
     except Exception: return []
 
 def load_all_configs() -> Dict:
+    """載入多國參數 JSON 設定檔"""
     configs = {}
     emoji_map = {
         "de": "🇩🇪", "nl": "🇳🇱", "at": "🇦🇹", "cz": "🇨🇿", "tr": "🇹🇷", "gb": "🇬🇧",
@@ -78,9 +87,10 @@ def load_all_configs() -> Dict:
             configs[label] = data
     return configs
 
-# --- II. 智慧辨識引擎 ---
+# --- II. 智慧辨識引擎 (OCR & Heuristics) ---
 
 def normalize_date_pro(text: str, month_map: Dict, target_year: int):
+    """具備主動年份補全功能的日期辨識邏輯"""
     t_clean = text.replace("'", " ").replace("/", " ").replace("-", " ").replace(".", " ")
     for m_n, m_v in sorted(month_map.items(), key=lambda x: len(x[0]), reverse=True):
         t_clean = re.sub(rf'\b{m_n}\b', f" {m_v} ", t_clean, flags=re.IGNORECASE)
@@ -101,6 +111,7 @@ def normalize_date_pro(text: str, month_map: Dict, target_year: int):
     return datetime(target_year, 1, 1).date(), -1
 
 def extract_data(text: str, params: Dict, date_idx: int) -> Tuple[str, float, str]:
+    """標靶修復級數據提取"""
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     curr = params.get('currency_code', '').upper()
     t_keys, s_keys = params.get('keywords', []), params.get('stop_keywords', [])
@@ -124,6 +135,7 @@ def extract_data(text: str, params: Dict, date_idx: int) -> Tuple[str, float, st
     return lines[0], final_amt, summary
 
 def sync_to_sheets(df: pd.DataFrame, user_name: str, curr_code: str, target_id: str) -> Tuple[int, int]:
+    """執行雲端同步並根據 UID 防止重複建置"""
     try:
         gc = get_gspread_client()
         sh = gc.open_by_key(target_id)
@@ -141,7 +153,7 @@ def sync_to_sheets(df: pd.DataFrame, user_name: str, curr_code: str, target_id: 
         return len(to_append), skip_count
     except Exception: return 0, 0
 
-# --- III. UI 介面 ---
+# --- III. 主程式進入點 (Main Entry) ---
 
 def main():
     st.set_page_config(page_title="考察支出登錄系統", layout="wide")
@@ -150,6 +162,7 @@ def main():
     all_cfg = load_all_configs()
     project_registry = load_project_registry()
 
+    # --- Sidebar: 專案管理 ---
     with st.sidebar:
         st.header("🏢 專案授權管理")
         if project_registry:
@@ -157,9 +170,11 @@ def main():
             target_sheet_id = project_registry[selected_project]
             project_users = load_project_users(target_sheet_id)
         else:
-            st.warning("⚠️ 查無授權專案。"); target_sheet_id = None; project_users = []
+            st.warning("⚠️ 查無授權專案。")
+            target_sheet_id = None; project_users = []
+        
         st.markdown("---")
-        st.info("💡 沒有您的專案？請複製範本、建立新專案並完成授權。")
+        st.info("💡 沒有專案？請連結範本建立。")
         st.link_button("📥 連結範本建立歸屬試算表", TEMPLATE_URL, use_container_width=True)
         st.markdown("---")
         st.header("⚙️ 辨識與控制")
@@ -168,20 +183,27 @@ def main():
         if st.button("清空目前列表", use_container_width=True):
             st.session_state['data'] = []; st.session_state['processed_hashes'] = set(); st.rerun()
 
+    # --- Main UI: 區域與人員 ---
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         sel_u = st.selectbox("報帳人員", project_users + ["其他"]) if project_users else st.text_input("人員姓名")
         final_u = st.text_input("確認姓名") if sel_u == "其他" else sel_u
 
     with c2:
-        # 修正後的區域分組排序邏輯
+        # 動態密度分組邏輯
+        continent_counts = {}
+        for cfg in all_cfg.values():
+            cont = cfg['continent']
+            continent_counts[cont] = continent_counts.get(cont, 0) + 1
+
         region_groups = {}
         for label, cfg in all_cfg.items():
-            reg_key = f"{cfg['continent']} [{cfg['sub_region']}]"
+            cont, sub = cfg['continent'], cfg['sub_region']
+            # 當大洲國家數 > 5 或是「國內」分類時，採分組顯示
+            reg_key = f"{cont} [{sub}]" if (sub == "國內" or continent_counts[cont] > 5) else cont
             if reg_key not in region_groups: region_groups[reg_key] = []
             region_groups[reg_key].append((label, cfg))
         
-        # 排序：國內優先，其餘按大洲名稱
         sorted_reg_keys = sorted(region_groups.keys(), key=lambda x: 0 if "國內" in x else 1)
         sel_region = st.selectbox("🌍 區域範圍", sorted_reg_keys)
         
@@ -198,8 +220,9 @@ def main():
         fee = st.number_input("手續費(%)", value=1.5 if p['currency_code'] != "TWD" else 0.0) / 100
         if target_sheet_id: st.link_button("📂 開啟試算表", f"https://docs.google.com/spreadsheets/d/{target_sheet_id}/edit")
 
+    # --- 影像管理 ---
     st.markdown("---")
-    files = st.file_uploader("📸 批次上傳 (單次建議 < 20 張)", accept_multiple_files=True, type=['jpg', 'jpeg', 'png'])
+    files = st.file_uploader("📸 批次上傳 (建議 < 20 張)", accept_multiple_files=True, type=['jpg', 'jpeg', 'png'])
 
     if files:
         with st.expander("🖼️ 影像預覽與狀態", expanded=False):
@@ -227,10 +250,13 @@ def main():
                     st.session_state['data'].append({"商店名稱":v, "參考品項":it, "消費日期":d, "外幣金額":a, "匯率":auto_rate, "備註":""})
                     st.session_state['processed_hashes'].add(f_hash)
                 st.rerun()
-            except Exception as e: st.error(f"錯誤: {e}")
+            except Exception as e: st.error(f"辨識錯誤: {e}")
 
+    # --- 數據同步 ---
     if st.session_state['data']:
-        edf = st.data_editor(pd.DataFrame(st.session_state['data']), use_container_width=True)
+        st.markdown("### 📝 暫存編輯區")
+        df_temp = pd.DataFrame(st.session_state['data'])
+        edf = st.data_editor(df_temp, use_container_width=True)
         btn_c1, btn_c2 = st.columns(2)
         with btn_c1:
             if st.button("🔄 依日期重抓匯率", use_container_width=True):
