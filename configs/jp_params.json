@@ -3,17 +3,19 @@
   "sub_region": "亞洲 [東亞/東南亞]",
   "priority": 1,
   "currency_code": "JPY",
+  "decimal_sep": ".",
+  "thousand_sep": ",",
+  "date_order": "YMD",
+  "address_regex": "(丁目|番地|号|県|市|区|町)",
+  "tax_symbols": "(\\*)",
   "keywords": [
     "合計"
   ],
   "exclude_keywords": [
-    "消費税"
+    "税"
   ],
   "stop_keywords": [
     "有難う"
-  ],
-  "header_headers": [
-    "品名"
   ],
   "month_map": {
     "1月": "01"

@@ -3,19 +3,17 @@
   "sub_region": "亞洲 [西南亞]",
   "priority": 10,
   "currency_code": "SAR",
+  "decimal_sep": ".",
+  "thousand_sep": ",",
+  "date_order": "DMY",
+  "address_regex": "(District)|(St\\.)",
+  "month_map": {
+    "ينا": "01"
+  },
   "keywords": [
     "الإجمالي"
   ],
-  "exclude_keywords": [
-    "الضريبة"
-  ],
   "stop_keywords": [
     "شكرا"
-  ],
-  "header_headers": [
-    "الكمية"
-  ],
-  "month_map": {
-    "ينا": "01"
-  }
+  ]
 }

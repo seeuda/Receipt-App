@@ -3,17 +3,17 @@
   "sub_region": "亞洲 [東亞/東南亞]",
   "priority": 0,
   "currency_code": "TWD",
+  "decimal_sep": ".",
+  "thousand_sep": ",",
+  "date_order": "YMD",
+  "address_regex": "(路|街|號|樓|市|區)",
+  "tax_symbols": "(\\*)",
   "keywords": [
-    "總計"
-  ],
-  "exclude_keywords": [
-    "稅"
+    "總計",
+    "合計"
   ],
   "stop_keywords": [
     "統編"
-  ],
-  "header_headers": [
-    "品名"
   ],
   "month_map": {
     "1月": "01"

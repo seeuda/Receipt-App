@@ -3,17 +3,15 @@
   "sub_region": "歐洲 [南歐]",
   "priority": 10,
   "currency_code": "EUR",
+  "decimal_sep": ",",
+  "thousand_sep": ".",
+  "date_order": "DMY",
+  "address_regex": "(\\d{5})|(Via)|(Piazza)",
   "keywords": [
     "TOTALE"
   ],
-  "exclude_keywords": [
-    "IVA"
-  ],
   "stop_keywords": [
     "GRAZIE"
-  ],
-  "header_headers": [
-    "QTA"
   ],
   "month_map": {
     "Gen": "01"

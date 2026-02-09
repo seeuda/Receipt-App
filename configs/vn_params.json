@@ -3,6 +3,11 @@
   "sub_region": "亞洲 [東亞/東南亞]",
   "priority": 10,
   "currency_code": "VND",
+  "decimal_sep": ",",
+  "thousand_sep": ".",
+  "date_order": "DMY",
+  "address_regex": "(Quận)|(Huyện)|(Phường)",
+  "tax_symbols": "(\\*)",
   "keywords": [
     "TỔNG"
   ],
@@ -11,9 +16,6 @@
   ],
   "stop_keywords": [
     "CẢM"
-  ],
-  "header_headers": [
-    "SL"
   ],
   "month_map": {
     "Tháng 1": "01"

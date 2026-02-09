@@ -3,17 +3,17 @@
   "sub_region": "歐洲 [中歐]",
   "priority": 1,
   "currency_code": "EUR",
+  "decimal_sep": ",",
+  "thousand_sep": ".",
+  "date_order": "DMY",
+  "address_regex": "(\\d{5}\\s+[A-Z])|(Str\\.)|(Ring)|(Platz)|(Tel:)|(St\\.-Nr)",
+  "tax_symbols": "([A-Z]\\b)",
   "keywords": [
-    "GESAMT"
-  ],
-  "exclude_keywords": [
-    "MWST"
+    "GESAMT",
+    "SUMME"
   ],
   "stop_keywords": [
-    "DANK"
-  ],
-  "header_headers": [
-    "ART"
+    "VIELEN DANK"
   ],
   "month_map": {
     "Jan": "01"

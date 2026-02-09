@@ -3,19 +3,17 @@
   "sub_region": "亞洲 [西南亞]",
   "priority": 10,
   "currency_code": "ILS",
+  "decimal_sep": ".",
+  "thousand_sep": ",",
+  "date_order": "DMY",
+  "address_regex": "(Street)|(St\\.)",
+  "month_map": {
+    "ינו": "01"
+  },
   "keywords": [
     "סה\"כ"
   ],
-  "exclude_keywords": [
-    "מע\"מ"
-  ],
   "stop_keywords": [
     "תודה"
-  ],
-  "header_headers": [
-    "כמות"
-  ],
-  "month_map": {
-    "ינו": "01"
-  }
+  ]
 }

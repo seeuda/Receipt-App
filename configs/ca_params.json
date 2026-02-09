@@ -3,17 +3,15 @@
   "sub_region": "美洲",
   "priority": 10,
   "currency_code": "CAD",
+  "decimal_sep": ".",
+  "thousand_sep": ",",
+  "date_order": "MDY",
+  "address_regex": "([A-Z]\\d[A-Z]\\s\\d[A-Z]\\d)|(St\\.)",
   "keywords": [
     "TOTAL"
   ],
-  "exclude_keywords": [
-    "GST"
-  ],
   "stop_keywords": [
     "THANK"
-  ],
-  "header_headers": [
-    "QTY"
   ],
   "month_map": {
     "Jan": "01"

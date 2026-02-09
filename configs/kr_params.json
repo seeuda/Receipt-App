@@ -3,6 +3,11 @@
   "sub_region": "亞洲 [東亞/東南亞]",
   "priority": 1,
   "currency_code": "KRW",
+  "decimal_sep": ".",
+  "thousand_sep": ",",
+  "date_order": "YMD",
+  "address_regex": "(동|로|길|구|시|도)",
+  "tax_symbols": "(\\*)",
   "keywords": [
     "합계"
   ],
@@ -11,9 +16,6 @@
   ],
   "stop_keywords": [
     "영수증"
-  ],
-  "header_headers": [
-    "상품명"
   ],
   "month_map": {
     "1월": "01"

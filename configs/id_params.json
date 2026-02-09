@@ -3,6 +3,11 @@
   "sub_region": "亞洲 [東亞/東南亞]",
   "priority": 10,
   "currency_code": "IDR",
+  "decimal_sep": ",",
+  "thousand_sep": ".",
+  "date_order": "DMY",
+  "address_regex": "(Jalan)|(Kec\\.)|(Kab\\.)",
+  "tax_symbols": "(\\*)",
   "keywords": [
     "TOTAL"
   ],
@@ -11,9 +16,6 @@
   ],
   "stop_keywords": [
     "TERIMA"
-  ],
-  "header_headers": [
-    "QTY"
   ],
   "month_map": {
     "Jan": "01"

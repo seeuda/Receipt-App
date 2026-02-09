@@ -3,17 +3,16 @@
   "sub_region": "歐洲 [中歐]",
   "priority": 10,
   "currency_code": "EUR",
+  "decimal_sep": ",",
+  "thousand_sep": ".",
+  "date_order": "DMY",
+  "address_regex": "(\\d{4}\\s+[A-Z])|(Gasse)|(Str\\.)",
+  "tax_symbols": "([A-Z]\\b)",
   "keywords": [
     "GESAMT"
   ],
-  "exclude_keywords": [
-    "MWST"
-  ],
   "stop_keywords": [
-    "DANK"
-  ],
-  "header_headers": [
-    "ART"
+    "DANKE"
   ],
   "month_map": {
     "Jan": "01"

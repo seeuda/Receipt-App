@@ -3,17 +3,15 @@
   "sub_region": "歐洲 [中歐]",
   "priority": 10,
   "currency_code": "PLN",
+  "decimal_sep": ",",
+  "thousand_sep": " ",
+  "date_order": "DMY",
+  "address_regex": "(\\d{2}-\\d{3})|(ul\\.)",
   "keywords": [
     "SUMA"
   ],
-  "exclude_keywords": [
-    "VAT"
-  ],
   "stop_keywords": [
     "DZIEK"
-  ],
-  "header_headers": [
-    "IL"
   ],
   "month_map": {
     "Sty": "01"

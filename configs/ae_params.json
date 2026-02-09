@@ -3,19 +3,17 @@
   "sub_region": "亞洲 [西南亞]",
   "priority": 10,
   "currency_code": "AED",
+  "decimal_sep": ".",
+  "thousand_sep": ",",
+  "date_order": "DMY",
+  "address_regex": "(Dubai)|(Abu Dhabi)|(PO Box)",
+  "month_map": {
+    "Jan": "01"
+  },
   "keywords": [
     "TOTAL"
   ],
-  "exclude_keywords": [
-    "VAT"
-  ],
   "stop_keywords": [
     "THANK"
-  ],
-  "header_headers": [
-    "QTY"
-  ],
-  "month_map": {
-    "Jan": "01"
-  }
+  ]
 }

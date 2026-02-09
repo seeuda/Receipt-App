@@ -3,6 +3,11 @@
   "sub_region": "亞洲 [東亞/東南亞]",
   "priority": 10,
   "currency_code": "THB",
+  "decimal_sep": ".",
+  "thousand_sep": ",",
+  "date_order": "DMY",
+  "address_regex": "(เขต)|(แขวง)|(จังหวัด)",
+  "tax_symbols": "(\\*)",
   "keywords": [
     "รวม"
   ],
@@ -11,9 +16,6 @@
   ],
   "stop_keywords": [
     "ขอบ"
-  ],
-  "header_headers": [
-    "ราย"
   ],
   "month_map": {
     "ม.ค.": "01"

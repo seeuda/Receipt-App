@@ -3,17 +3,15 @@
   "sub_region": "歐洲 [西歐]",
   "priority": 10,
   "currency_code": "EUR",
+  "decimal_sep": ",",
+  "thousand_sep": ".",
+  "date_order": "DMY",
+  "address_regex": "(Rue)|(Straat)",
   "keywords": [
     "TOTAL"
   ],
-  "exclude_keywords": [
-    "TVA"
-  ],
   "stop_keywords": [
     "MERCI"
-  ],
-  "header_headers": [
-    "QTE"
   ],
   "month_map": {
     "Jan": "01"
