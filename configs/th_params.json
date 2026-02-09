@@ -1,0 +1,19 @@
+{
+  "country": "泰國",
+  "currency_code": "THB",
+  "keywords": [
+    "รวม"
+  ],
+  "exclude_keywords": [
+    "VAT"
+  ],
+  "stop_keywords": [
+    "ขอบคุณ"
+  ],
+  "header_headers": [
+    "รายการ"
+  ],
+  "month_map": {
+    "ม.ค.": "01"
+  }
+}

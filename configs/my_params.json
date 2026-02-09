@@ -1,19 +1,19 @@
 {
-  "country": "土耳其",
-  "currency_code": "TRY",
+  "country": "馬來西亞",
+  "currency_code": "MYR",
   "keywords": [
-    "TOPLAM"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "KDV"
+    "SST"
   ],
   "stop_keywords": [
-    "TEŞEKKÜR"
+    "TERIMA KASIH"
   ],
   "header_headers": [
-    "ÜRÜN"
+    "QTY"
   ],
   "month_map": {
-    "Oca": "01"
+    "Jan": "01"
   }
 }

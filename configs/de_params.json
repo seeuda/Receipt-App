@@ -1,19 +1,23 @@
 {
-  "country": "奧地利",
+  "country": "德國",
   "currency_code": "EUR",
   "keywords": [
-    "GESAMT"
+    "GESAMT",
+    "SUMME"
   ],
   "exclude_keywords": [
     "MWST"
   ],
   "stop_keywords": [
-    "DANKE"
+    "VIELEN DANK"
   ],
   "header_headers": [
-    "ARTIKEL"
+    "ARTIKEL",
+    "PREIS"
   ],
   "month_map": {
-    "Jan": "01"
+    "Jan": "01",
+    "Feb": "02",
+    "Mär": "03"
   }
 }

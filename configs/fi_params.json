@@ -1,19 +1,19 @@
 {
-  "country": "土耳其",
-  "currency_code": "TRY",
+  "country": "芬蘭",
+  "currency_code": "EUR",
   "keywords": [
-    "TOPLAM"
+    "YHTEENSÄ"
   ],
   "exclude_keywords": [
-    "KDV"
+    "ALV"
   ],
   "stop_keywords": [
-    "TEŞEKKÜR"
+    "KIITOS"
   ],
   "header_headers": [
-    "ÜRÜN"
+    "MAARA"
   ],
   "month_map": {
-    "Oca": "01"
+    "Tammi": "01"
   }
 }

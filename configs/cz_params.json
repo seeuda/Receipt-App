@@ -1,7 +1,19 @@
 {
-    "country": "Czech Republic",
-    "currency_code": "CZK",
-    "decimal_separator": ",",
-    "keywords": ["Celkem", "Částka", "K úhradě", "Konečná částka", "Kč"],
-    "month_map": {"Led":"01","Úno":"02","Bře":"03","Dub":"04","Kvě":"05","Čer":"06","Čvc":"07","Srp":"08","Zář":"09","Říj":"10","Lis":"11","Pro":"12"}
+  "country": "捷克",
+  "currency_code": "CZK",
+  "keywords": [
+    "CELKEM"
+  ],
+  "exclude_keywords": [
+    "DPH"
+  ],
+  "stop_keywords": [
+    "DĚKUJEME"
+  ],
+  "header_headers": [
+    "POLOŽKA"
+  ],
+  "month_map": {
+    "Led": "01"
+  }
 }

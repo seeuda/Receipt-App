@@ -1,19 +1,19 @@
 {
-  "country": "土耳其",
-  "currency_code": "TRY",
+  "country": "瑞典",
+  "currency_code": "SEK",
   "keywords": [
-    "TOPLAM"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "KDV"
+    "MOMS"
   ],
   "stop_keywords": [
-    "TEŞEKKÜR"
+    "TACK"
   ],
   "header_headers": [
-    "ÜRÜN"
+    "ANT"
   ],
   "month_map": {
-    "Oca": "01"
+    "Jan": "01"
   }
 }

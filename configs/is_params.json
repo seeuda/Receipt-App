@@ -1,19 +1,19 @@
 {
-  "country": "土耳其",
-  "currency_code": "TRY",
+  "country": "冰島",
+  "currency_code": "ISK",
   "keywords": [
-    "TOPLAM"
+    "SAMTALS"
   ],
   "exclude_keywords": [
-    "KDV"
+    "VSK"
   ],
   "stop_keywords": [
-    "TEŞEKKÜR"
+    "TAKK"
   ],
   "header_headers": [
-    "ÜRÜN"
+    "MAGN"
   ],
   "month_map": {
-    "Oca": "01"
+    "Jan": "01"
   }
 }

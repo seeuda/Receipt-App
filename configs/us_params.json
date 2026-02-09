@@ -1,0 +1,23 @@
+{
+  "country": "美國",
+  "currency_code": "USD",
+  "keywords": [
+    "TOTAL",
+    "AMOUNT DUE"
+  ],
+  "exclude_keywords": [
+    "TAX",
+    "SUBTOTAL"
+  ],
+  "stop_keywords": [
+    "THANK YOU"
+  ],
+  "header_headers": [
+    "QTY",
+    "ITEM"
+  ],
+  "month_map": {
+    "Jan": "01",
+    "Dec": "12"
+  }
+}

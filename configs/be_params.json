@@ -1,19 +1,19 @@
 {
-  "country": "土耳其",
-  "currency_code": "TRY",
+  "country": "比利時",
+  "currency_code": "EUR",
   "keywords": [
-    "TOPLAM"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "KDV"
+    "TVA"
   ],
   "stop_keywords": [
-    "TEŞEKKÜR"
+    "MERCI"
   ],
   "header_headers": [
-    "ÜRÜN"
+    "QTE"
   ],
   "month_map": {
-    "Oca": "01"
+    "Jan": "01"
   }
 }

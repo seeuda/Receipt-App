@@ -1,19 +1,19 @@
 {
-  "country": "土耳其",
-  "currency_code": "TRY",
+  "country": "挪威",
+  "currency_code": "NOK",
   "keywords": [
-    "TOPLAM"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "KDV"
+    "MVA"
   ],
   "stop_keywords": [
-    "TEŞEKKÜR"
+    "TAK"
   ],
   "header_headers": [
-    "ÜRÜN"
+    "ANT"
   ],
   "month_map": {
-    "Oca": "01"
+    "Jan": "01"
   }
 }

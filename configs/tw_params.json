@@ -1,19 +1,23 @@
 {
-  "country": "日本",
-  "currency_code": "JPY",
+  "country": "台灣",
+  "currency_code": "TWD",
   "keywords": [
+    "總計",
     "合計",
-    "お買上額"
+    "應付金額"
   ],
   "exclude_keywords": [
-    "消費税"
+    "營業稅",
+    "小計"
   ],
   "stop_keywords": [
-    "有難う"
+    "統一編號",
+    "謝謝光臨"
   ],
   "header_headers": [
     "品名",
-    "金額"
+    "數量",
+    "單價"
   ],
   "month_map": {
     "1月": "01",

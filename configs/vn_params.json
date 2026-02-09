@@ -1,19 +1,19 @@
 {
-  "country": "土耳其",
-  "currency_code": "TRY",
+  "country": "越南",
+  "currency_code": "VND",
   "keywords": [
-    "TOPLAM"
+    "TỔNG CỘNG"
   ],
   "exclude_keywords": [
-    "KDV"
+    "VAT"
   ],
   "stop_keywords": [
-    "TEŞEKKÜR"
+    "CẢM ƠN"
   ],
   "header_headers": [
-    "ÜRÜN"
+    "SL"
   ],
   "month_map": {
-    "Oca": "01"
+    "Tháng 1": "01"
   }
 }

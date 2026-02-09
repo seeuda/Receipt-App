@@ -1,19 +1,20 @@
 {
-  "country": "土耳其",
-  "currency_code": "TRY",
+  "country": "加拿大",
+  "currency_code": "CAD",
   "keywords": [
-    "TOPLAM"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "KDV"
+    "GST",
+    "HST"
   ],
   "stop_keywords": [
-    "TEŞEKKÜR"
+    "THANK YOU"
   ],
   "header_headers": [
-    "ÜRÜN"
+    "QTY"
   ],
   "month_map": {
-    "Oca": "01"
+    "Jan": "01"
   }
 }

@@ -1,19 +1,19 @@
 {
-  "country": "土耳其",
-  "currency_code": "TRY",
+  "country": "荷蘭",
+  "currency_code": "EUR",
   "keywords": [
-    "TOPLAM"
+    "TOTAAL"
   ],
   "exclude_keywords": [
-    "KDV"
+    "BTW"
   ],
   "stop_keywords": [
-    "TEŞEKKÜR"
+    "BEDANKT"
   ],
   "header_headers": [
-    "ÜRÜN"
+    "AANTAL"
   ],
   "month_map": {
-    "Oca": "01"
+    "Jan": "01"
   }
 }

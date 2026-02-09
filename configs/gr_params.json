@@ -1,19 +1,19 @@
 {
-  "country": "奧地利",
+  "country": "希臘",
   "currency_code": "EUR",
   "keywords": [
-    "GESAMT"
+    "ΣΥΝΟΛΟ"
   ],
   "exclude_keywords": [
-    "MWST"
+    "ΦΠΑ"
   ],
   "stop_keywords": [
-    "DANKE"
+    "ΕΥΧΑΡΙΣΤΟΥΜΕ"
   ],
   "header_headers": [
-    "ARTIKEL"
+    "ΠΟΣ"
   ],
   "month_map": {
-    "Jan": "01"
+    "Ιαν": "01"
   }
 }

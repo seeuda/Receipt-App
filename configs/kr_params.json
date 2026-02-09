@@ -1,7 +1,20 @@
 {
-    "country": "South Korea",
-    "currency_code": "KRW",
-    "decimal_separator": ".",
-    "keywords": ["합계", "결제금액", "받은금액", "총액", "Total"],
-    "month_map": {"Jan":"01","Feb":"02","Mar":"03","Apr":"04","May":"05","Jun":"06","Jul":"07","Aug":"08","Sep":"09","Oct":"10","Nov":"11","Dec":"12"}
+  "country": "韓國",
+  "currency_code": "KRW",
+  "keywords": [
+    "합계",
+    "결제금액"
+  ],
+  "exclude_keywords": [
+    "부가세"
+  ],
+  "stop_keywords": [
+    "감사합니다"
+  ],
+  "header_headers": [
+    "상품명"
+  ],
+  "month_map": {
+    "1월": "01"
+  }
 }

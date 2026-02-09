@@ -1,19 +1,19 @@
 {
-  "country": "土耳其",
-  "currency_code": "TRY",
+  "country": "葡萄牙",
+  "currency_code": "EUR",
   "keywords": [
-    "TOPLAM"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "KDV"
+    "IVA"
   ],
   "stop_keywords": [
-    "TEŞEKKÜR"
+    "OBRIGADO"
   ],
   "header_headers": [
-    "ÜRÜN"
+    "QTD"
   ],
   "month_map": {
-    "Oca": "01"
+    "Jan": "01"
   }
 }

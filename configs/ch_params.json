@@ -1,19 +1,19 @@
 {
-  "country": "土耳其",
-  "currency_code": "TRY",
+  "country": "瑞士",
+  "currency_code": "CHF",
   "keywords": [
-    "TOPLAM"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "KDV"
+    "MWST"
   ],
   "stop_keywords": [
-    "TEŞEKKÜR"
+    "DANKE"
   ],
   "header_headers": [
-    "ÜRÜN"
+    "ART"
   ],
   "month_map": {
-    "Oca": "01"
+    "Jan": "01"
   }
 }

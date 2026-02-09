@@ -1,17 +1,19 @@
 {
-  "country": "奧地利",
+  "country": "法國",
   "currency_code": "EUR",
   "keywords": [
-    "GESAMT"
+    "TOTAL",
+    "TTC"
   ],
   "exclude_keywords": [
-    "MWST"
+    "TVA",
+    "HT"
   ],
   "stop_keywords": [
-    "DANKE"
+    "MERCI"
   ],
   "header_headers": [
-    "ARTIKEL"
+    "QTE"
   ],
   "month_map": {
     "Jan": "01"

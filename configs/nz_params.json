@@ -1,19 +1,19 @@
 {
-  "country": "土耳其",
-  "currency_code": "TRY",
+  "country": "紐西蘭",
+  "currency_code": "NZD",
   "keywords": [
-    "TOPLAM"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "KDV"
+    "GST"
   ],
   "stop_keywords": [
-    "TEŞEKKÜR"
+    "THANK YOU"
   ],
   "header_headers": [
-    "ÜRÜN"
+    "QTY"
   ],
   "month_map": {
-    "Oca": "01"
+    "Jan": "01"
   }
 }
