@@ -218,8 +218,8 @@ def main():
         st.markdown("---")
         
         st.header("⚙️ 辨識與控制")
-        debug_mode = st.checkbox("🔍 OCR 偵錯模式")
         target_year = st.number_input("📅 年度鎖定", value=2025)
+        debug_mode = st.checkbox("🔍 OCR 偵錯模式")
         if st.button("清空目前列表", use_container_width=True):
             st.session_state['data'] = []; st.session_state['processed_hashes'] = set(); st.rerun()
 
