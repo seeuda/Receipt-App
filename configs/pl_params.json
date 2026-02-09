@@ -1,7 +1,6 @@
 {
   "country": "波蘭",
-  "continent": "歐洲",
-  "sub_region": "中歐",
+  "sub_region": "歐洲 [中歐]",
   "priority": 10,
   "currency_code": "PLN",
   "keywords": [
@@ -11,10 +10,10 @@
     "VAT"
   ],
   "stop_keywords": [
-    "DZIEKUJEMY"
+    "DZIEK"
   ],
   "header_headers": [
-    "ILOSC"
+    "IL"
   ],
   "month_map": {
     "Sty": "01"

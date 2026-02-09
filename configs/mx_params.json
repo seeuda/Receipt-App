@@ -1,7 +1,6 @@
 {
   "country": "墨西哥",
-  "continent": "美洲",
-  "sub_region": "中南美",
+  "sub_region": "美洲",
   "priority": 10,
   "currency_code": "MXN",
   "keywords": [

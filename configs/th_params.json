@@ -1,7 +1,6 @@
 {
   "country": "泰國",
-  "continent": "亞洲",
-  "sub_region": "東南亞",
+  "sub_region": "亞洲 [東亞/東南亞]",
   "priority": 10,
   "currency_code": "THB",
   "keywords": [
@@ -11,10 +10,10 @@
     "VAT"
   ],
   "stop_keywords": [
-    "ขอบคุณ"
+    "ขอบ"
   ],
   "header_headers": [
-    "รายการ"
+    "ราย"
   ],
   "month_map": {
     "ม.ค.": "01"

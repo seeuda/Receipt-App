@@ -1,7 +1,6 @@
 {
   "country": "美國",
-  "continent": "美洲",
-  "sub_region": "北美",
+  "sub_region": "美洲",
   "priority": 1,
   "currency_code": "USD",
   "keywords": [
@@ -11,7 +10,7 @@
     "TAX"
   ],
   "stop_keywords": [
-    "THANK YOU"
+    "THANK"
   ],
   "header_headers": [
     "QTY"

@@ -1,7 +1,6 @@
 {
   "country": "日本",
-  "continent": "亞洲",
-  "sub_region": "東亞",
+  "sub_region": "亞洲 [東亞/東南亞]",
   "priority": 1,
   "currency_code": "JPY",
   "keywords": [

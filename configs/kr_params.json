@@ -1,7 +1,6 @@
 {
   "country": "韓國",
-  "continent": "亞洲",
-  "sub_region": "東亞",
+  "sub_region": "亞洲 [東亞/東南亞]",
   "priority": 1,
   "currency_code": "KRW",
   "keywords": [
@@ -11,7 +10,7 @@
     "부가세"
   ],
   "stop_keywords": [
-    "감사합니다"
+    "영수증"
   ],
   "header_headers": [
     "상품명"

@@ -1,7 +1,6 @@
 {
   "country": "印尼",
-  "continent": "亞洲",
-  "sub_region": "東南亞",
+  "sub_region": "亞洲 [東亞/東南亞]",
   "priority": 10,
   "currency_code": "IDR",
   "keywords": [
@@ -11,7 +10,7 @@
     "PAJAK"
   ],
   "stop_keywords": [
-    "TERIMA KASIH"
+    "TERIMA"
   ],
   "header_headers": [
     "QTY"

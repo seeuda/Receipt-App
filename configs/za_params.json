@@ -1,7 +1,6 @@
 {
   "country": "南非",
-  "continent": "非洲",
-  "sub_region": "南非",
+  "sub_region": "其他區域",
   "priority": 10,
   "currency_code": "ZAR",
   "keywords": [
@@ -11,7 +10,7 @@
     "VAT"
   ],
   "stop_keywords": [
-    "THANK YOU"
+    "THANK"
   ],
   "header_headers": [
     "QTY"

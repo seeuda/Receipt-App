@@ -1,7 +1,6 @@
 {
   "country": "加拿大",
-  "continent": "美洲",
-  "sub_region": "北美",
+  "sub_region": "美洲",
   "priority": 10,
   "currency_code": "CAD",
   "keywords": [
@@ -11,7 +10,7 @@
     "GST"
   ],
   "stop_keywords": [
-    "THANK YOU"
+    "THANK"
   ],
   "header_headers": [
     "QTY"

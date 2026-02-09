@@ -1,7 +1,6 @@
 {
   "country": "愛爾蘭",
-  "continent": "歐洲",
-  "sub_region": "西歐",
+  "sub_region": "歐洲 [西歐]",
   "priority": 10,
   "currency_code": "EUR",
   "keywords": [
@@ -11,7 +10,7 @@
     "VAT"
   ],
   "stop_keywords": [
-    "THANK YOU"
+    "THANK"
   ],
   "header_headers": [
     "QTY"

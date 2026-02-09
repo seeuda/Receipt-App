@@ -1,7 +1,6 @@
 {
   "country": "芬蘭",
-  "continent": "歐洲",
-  "sub_region": "北歐",
+  "sub_region": "歐洲 [北歐]",
   "priority": 10,
   "currency_code": "EUR",
   "keywords": [

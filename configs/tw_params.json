@@ -1,18 +1,16 @@
 {
   "country": "台灣",
-  "continent": "亞洲",
-  "sub_region": "國內",
+  "sub_region": "亞洲 [東亞/東南亞]",
   "priority": 0,
   "currency_code": "TWD",
   "keywords": [
-    "總計",
-    "合計"
+    "總計"
   ],
   "exclude_keywords": [
-    "營業稅"
+    "稅"
   ],
   "stop_keywords": [
-    "統一編號"
+    "統編"
   ],
   "header_headers": [
     "品名"

@@ -1,7 +1,6 @@
 {
   "country": "紐西蘭",
-  "continent": "大洋洲",
-  "sub_region": "紐澳",
+  "sub_region": "其他區域",
   "priority": 10,
   "currency_code": "NZD",
   "keywords": [
@@ -11,7 +10,7 @@
     "GST"
   ],
   "stop_keywords": [
-    "THANK YOU"
+    "THANK"
   ],
   "header_headers": [
     "QTY"

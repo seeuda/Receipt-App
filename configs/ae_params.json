@@ -1,7 +1,6 @@
 {
   "country": "阿聯",
-  "continent": "亞洲",
-  "sub_region": "西亞",
+  "sub_region": "亞洲 [西南亞]",
   "priority": 10,
   "currency_code": "AED",
   "keywords": [
@@ -11,7 +10,7 @@
     "VAT"
   ],
   "stop_keywords": [
-    "THANK YOU"
+    "THANK"
   ],
   "header_headers": [
     "QTY"

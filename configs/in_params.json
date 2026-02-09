@@ -1,7 +1,6 @@
 {
   "country": "印度",
-  "continent": "亞洲",
-  "sub_region": "南亞",
+  "sub_region": "亞洲 [西南亞]",
   "priority": 10,
   "currency_code": "INR",
   "keywords": [
@@ -11,7 +10,7 @@
     "GST"
   ],
   "stop_keywords": [
-    "THANK YOU"
+    "THANK"
   ],
   "header_headers": [
     "QTY"

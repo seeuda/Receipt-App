@@ -1,7 +1,6 @@
 {
   "country": "土耳其",
-  "continent": "歐洲",
-  "sub_region": "中歐",
+  "sub_region": "歐洲 [中歐]",
   "priority": 10,
   "currency_code": "TRY",
   "keywords": [
@@ -11,10 +10,10 @@
     "KDV"
   ],
   "stop_keywords": [
-    "TEŞEKKÜR"
+    "TEŞE"
   ],
   "header_headers": [
-    "ÜRÜN"
+    "ÜR"
   ],
   "month_map": {
     "Oca": "01"
