@@ -191,12 +191,32 @@ def main():
         sel_u = st.selectbox("報帳人員", project_users + ["其他"]) if project_users else st.text_input("人員姓名")
         final_u = st.text_input("確認姓名") if sel_u == "其他" else sel_u
     with c2:
-        conts = sorted(list(set(cfg['continent'] for cfg in all_cfg.values())))
-        sel_cont = st.selectbox("🌍 區域", conts)
-        f_list = [l for l, cfg in all_cfg.items() if cfg['continent'] == sel_cont]
-        sel_l = st.selectbox("📍 記帳國家", f_list)
-        p = all_cfg[sel_l]
-    with c3:
+    # 1. 取得所有大洲 (按中文名稱排序)
+    continents = sorted(list(set(cfg['continent'] for cfg in all_cfg.values())))
+    sel_continent = st.selectbox("🌍 區域", continents)
+    
+    # 2. 核心權重排序邏輯
+    # 先過濾出該區域國家，並組成排序用的元組 (權重, 子區域, 顯示名稱)
+    country_items = []
+    for label, cfg in all_cfg.items():
+        if cfg['continent'] == sel_continent:
+            prio = cfg.get('priority', 100)
+            sub = cfg.get('sub_region', '其他')
+            # 格式化顯示名稱為: [子區域] 國旗 國名
+            display_name = f"[{sub}] {label}"
+            country_items.append((prio, sub, display_name, label))
+    
+    # 執行多重排序：優先權(小到大) > 子區域 > 顯示名稱
+    sorted_countries = sorted(country_items, key=lambda x: (x[0], x[1], x[2]))
+    
+    # 產出最終選單清單
+    final_labels = [item[2] for item in sorted_countries]
+    
+    sel_display = st.selectbox("📍 記帳國家", final_labels)
+    
+    # 透過 display_name 反查回原始 config 資料
+    original_label = next(item[3] for item in sorted_countries if item[2] == sel_display)
+    p = all_cfg[original_label]    with c3:
         f_rate = get_rate_by_date(p['currency_code'], datetime.now().date())
         m_rate = st.number_input(f"預設匯率 ({p['currency_code']})", value=float(f_rate), step=0.01)
     with c4:
