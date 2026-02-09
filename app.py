@@ -205,8 +205,8 @@ def main():
 
     with st.sidebar:
         st.header("🏢 專案授權管理")
-        st.info("💡 首次使用？請先下載範本並完成授權。")
-        st.link_button("📥 下載歸屬試算表範本", TEMPLATE_URL, use_container_width=True)
+        st.info("💡 新建專案？請複製範本建立歸屬試算表並完成授權。")
+        st.link_button("📥 連結範本建立歸屬試算表", TEMPLATE_URL, use_container_width=True)
         st.markdown("---")
         
         if project_registry:
