@@ -14,12 +14,7 @@
     "BEDANKT"
   ],
   "header_headers": [
-    "AANTAL",
-    "OMS",
-    "PRIJS",
-    "DATUM",
-    "BON",
-    "TBL"
+    "AANTAL"
   ],
   "month_map": {
     "Jan": "01"
