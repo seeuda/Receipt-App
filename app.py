@@ -190,25 +190,37 @@ def main():
         sel_u = st.selectbox("報帳人員", project_users + ["其他"]) if project_users else st.text_input("人員姓名")
         final_u = st.text_input("確認姓名") if sel_u == "其他" else sel_u
 
+    # --- 在 main() 函數內的 UI 區塊 ---
+
     with c2:
-        # 大洲過濾與優先權排序邏輯
-        continents = sorted(list(set(cfg['continent'] for cfg in all_cfg.values())))
-        sel_continent = st.selectbox("🌍 區域", continents)
-        
-        country_items = []
-        for label, cfg in all_cfg.items():
-            if cfg['continent'] == sel_continent:
-                prio = cfg.get('priority', 100)
-                sub = cfg.get('sub_region', '其他')
-                display_name = f"[{sub}] {label}"
-                country_items.append((prio, sub, display_name, label))
-        
-        # 多重排序：優先權 > 子區域 > 名稱
-        sorted_countries = sorted(country_items, key=lambda x: (x[0], x[1], x[2]))
-        final_labels = [item[2] for item in sorted_countries]
-        sel_display = st.selectbox("📍 記帳國家", final_labels)
-        original_label = next(item[3] for item in sorted_countries if item[2] == sel_display)
-        p = all_cfg[original_label]
+    # 1. 建立「大洲 [子區域]」的映射表
+    # 格式: {"亞洲 [國內]": {"label": "🇹🇼 台灣", "config": {...}}, ...}
+    region_groups = {}
+    for label, cfg in all_cfg.items():
+        reg_key = f"{cfg['continent']} [{cfg['sub_region']}]"
+        if reg_key not in region_groups:
+            region_groups[reg_key] = []
+        region_groups[reg_key].append((label, cfg))
+
+    # 2. 區域排序邏輯：國內優先，其餘按字首排序
+    sorted_reg_keys = sorted(region_groups.keys(), key=lambda x: 0 if "國內" in x else 1)
+    
+    # 第一層：選擇具體區域
+    sel_region = st.selectbox("🌍 區域範圍", sorted_reg_keys)
+    
+    # 3. 國家排序邏輯：依 Priority > 名稱
+    # 從選定的區域中提取國家清單
+    countries_in_region = region_groups[sel_region]
+    sorted_countries = sorted(countries_in_region, key=lambda x: (x[1].get('priority', 100), x[0]))
+    
+    # 產出選單標籤 (此處國家名稱不再需要加註子區域，因為已經在第一層選過)
+    final_labels = [item[0] for item in sorted_countries]
+    
+    # 第二層：選擇國家
+    sel_label = st.selectbox("📍 記帳國家", final_labels)
+    
+    # 提取選定國家的配置
+    p = next(item[1] for item in sorted_countries if item[0] == sel_label)
 
     with c3:
         f_rate = get_rate_by_date(p['currency_code'], datetime.now().date())
