@@ -221,6 +221,7 @@ def main():
             try:
                 client = vision.ImageAnnotatorClient(credentials=service_account.Credentials.from_service_account_info(st.secrets["gcp_service_account"]))
                 for f in files:
+                    f.seek(0)  # 將指標歸零，防止讀取到空內容導致 400 錯誤
                     content = f.read(); f_hash = calculate_hash(content)
                     if f_hash in st.session_state['processed_hashes']: continue
                     txt = client.document_text_detection(image=vision.Image(content=content)).full_text_annotation.text
