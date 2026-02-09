@@ -1,39 +1,22 @@
 {
   "country": "義大利",
   "continent": "歐洲",
+  "sub_region": "南歐",
+  "priority": 10,
   "currency_code": "EUR",
   "keywords": [
-    "TOTALE",
-    "SOMMA",
-    "TOTALE EURO",
-    "TOTAL"
+    "TOTALE"
   ],
   "exclude_keywords": [
-    "IVA",
-    "NETTO",
-    "IMPONIBILE",
-    "SUBTOTALE",
-    "TAX"
+    "IVA"
   ],
   "stop_keywords": [
-    "GRAZIE",
-    "ARRIVEDERCI",
-    "VISA",
-    "MASTERCARD",
-    "WWW."
+    "GRAZIE"
   ],
   "header_headers": [
-    "DESCRIZIONE",
-    "QTA",
-    "PREZZO",
-    "DATA",
-    "SCONTRINO",
-    "TBL"
+    "QTA"
   ],
   "month_map": {
-    "Gen": "01",
-    "Feb": "02",
-    "Mar": "03",
-    "Dic": "12"
+    "Gen": "01"
   }
 }

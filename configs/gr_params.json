@@ -1,34 +1,22 @@
 {
   "country": "希臘",
   "continent": "歐洲",
+  "sub_region": "南歐",
+  "priority": 10,
   "currency_code": "EUR",
   "keywords": [
-    "ΣΥΝΟΛΟ",
-    "ΠΛΗΡΩΤΕΟ",
-    "TOTAL"
+    "ΣΥΝΟΛΟ"
   ],
   "exclude_keywords": [
-    "ΦΠΑ",
-    "ΚΑΘΑΡΟ",
-    "TAX",
-    "VAT"
+    "ΦΠΑ"
   ],
   "stop_keywords": [
-    "ΕΥΧΑΡΙΣΤΟΥΜΕ",
-    "VISA",
-    "AUTH"
+    "ΕΥΧΑΡΙΣΤΟΥΜΕ"
   ],
   "header_headers": [
-    "ΠΟΣ",
-    "ΕΙΔΟΣ",
-    "ΤΙΜΗ",
-    "ΗΜΕΡ",
-    "TBL"
+    "ΠΟΣ"
   ],
   "month_map": {
-    "Ιαν": "01",
-    "Φεβ": "02",
-    "Μαρ": "03",
-    "Δεκ": "12"
+    "Ιαν": "01"
   }
 }

@@ -1,44 +1,23 @@
 {
   "country": "丹麥",
   "continent": "歐洲",
+  "sub_region": "北歐",
+  "priority": 5,
   "currency_code": "DKK",
   "keywords": [
     "TOTAL",
-    "IALT",
-    "PAYMENT DUE",
-    "DANKORT",
-    "AMOUNT"
+    "IALT"
   ],
   "exclude_keywords": [
-    "MOMS",
-    "VAT",
-    "TAX",
-    "SUBTOTAL",
-    "NET",
-    "HERAF",
-    "SKAT"
+    "MOMS"
   ],
   "stop_keywords": [
-    "KØB",
-    "VISA",
-    "CONTACTLESS",
-    "WWW.",
-    "AUTH"
+    "KØB"
   ],
   "header_headers": [
-    "ANT",
-    "NAVN",
-    "ENHEDSPR",
-    "KVITTERING",
-    "CVR",
-    "TBL"
+    "ANT"
   ],
   "month_map": {
-    "Januar": "01",
-    "Februar": "02",
-    "Marts": "03",
-    "April": "04",
-    "Maj": "05",
-    "Juni": "06"
+    "Januar": "01"
   }
 }

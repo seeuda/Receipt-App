@@ -1,33 +1,22 @@
 {
   "country": "南非",
   "continent": "非洲",
+  "sub_region": "南非",
+  "priority": 10,
   "currency_code": "ZAR",
   "keywords": [
-    "TOTAL",
-    "AMOUNT DUE",
-    "GRAND TOTAL"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "VAT",
-    "SUBTOTAL",
-    "TAXABLE"
+    "VAT"
   ],
   "stop_keywords": [
-    "THANK YOU",
-    "VISA",
-    "MASTERCARD"
+    "THANK YOU"
   ],
   "header_headers": [
-    "QTY",
-    "ITEM",
-    "PRICE",
-    "DATE",
-    "TBL"
+    "QTY"
   ],
   "month_map": {
-    "Jan": "01",
-    "Feb": "02",
-    "Mar": "03",
-    "Dec": "12"
+    "Jan": "01"
   }
 }

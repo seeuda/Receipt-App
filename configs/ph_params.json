@@ -1,35 +1,22 @@
 {
   "country": "菲律賓",
   "continent": "亞洲",
+  "sub_region": "東南亞",
+  "priority": 10,
   "currency_code": "PHP",
   "keywords": [
-    "TOTAL",
-    "AMOUNT DUE",
-    "GRAND TOTAL"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "VAT",
-    "SERVICE CHARGE",
-    "SUBTOTAL",
-    "TAXABLE"
+    "VAT"
   ],
   "stop_keywords": [
-    "THANK YOU",
-    "VISA",
-    "MASTERCARD",
-    "WWW."
+    "THANK YOU"
   ],
   "header_headers": [
-    "QTY",
-    "ITEM",
-    "PRICE",
-    "DATE",
-    "OR#",
-    "TBL"
+    "QTY"
   ],
   "month_map": {
-    "Jan": "01",
-    "Feb": "02",
-    "Dec": "12"
+    "Jan": "01"
   }
 }

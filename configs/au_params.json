@@ -1,33 +1,22 @@
 {
   "country": "澳洲",
   "continent": "大洋洲",
+  "sub_region": "紐澳",
+  "priority": 10,
   "currency_code": "AUD",
   "keywords": [
-    "TOTAL",
-    "AMOUNT DUE",
-    "GRAND TOTAL"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "GST",
-    "SUBTOTAL",
-    "TAXABLE"
+    "GST"
   ],
   "stop_keywords": [
-    "THANK YOU",
-    "VISA",
-    "MASTERCARD"
+    "THANK YOU"
   ],
   "header_headers": [
-    "QTY",
-    "ITEM",
-    "PRICE",
-    "DATE",
-    "TBL"
+    "QTY"
   ],
   "month_map": {
-    "Jan": "01",
-    "Feb": "02",
-    "Mar": "03",
-    "Dec": "12"
+    "Jan": "01"
   }
 }

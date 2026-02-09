@@ -1,42 +1,22 @@
 {
   "country": "德國",
   "continent": "歐洲",
+  "sub_region": "中歐",
+  "priority": 1,
   "currency_code": "EUR",
   "keywords": [
-    "GESAMT",
-    "SUMME",
-    "ZAHLBETRAG",
-    "TOTAL"
+    "GESAMT"
   ],
   "exclude_keywords": [
-    "MWST",
-    "UST",
-    "NETTO",
-    "STEUER",
-    "TAX",
-    "VAT"
+    "MWST"
   ],
   "stop_keywords": [
-    "VIELEN DANK",
-    "AUF WIEDERSEHEN",
-    "VISA",
-    "MASTERCARD",
-    "AUTH"
+    "VIELEN DANK"
   ],
   "header_headers": [
-    "ARTIKEL",
-    "MENGE",
-    "PREIS",
-    "DATUM",
-    "BELEG",
-    "TBL"
+    "ARTIKEL"
   ],
   "month_map": {
-    "Jan": "01",
-    "Feb": "02",
-    "Mär": "03",
-    "Apr": "04",
-    "Okt": "10",
-    "Dez": "12"
+    "Jan": "01"
   }
 }

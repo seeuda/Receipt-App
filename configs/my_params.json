@@ -1,35 +1,22 @@
 {
   "country": "馬來西亞",
   "continent": "亞洲",
+  "sub_region": "東南亞",
+  "priority": 10,
   "currency_code": "MYR",
   "keywords": [
-    "TOTAL",
-    "JUMLAH",
-    "GRAND TOTAL"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "SST",
-    "GST",
-    "SERVICE TAX",
-    "SUBTOTAL"
+    "SST"
   ],
   "stop_keywords": [
-    "TERIMA KASIH",
-    "THANK YOU",
-    "VISA",
-    "MASTERCARD"
+    "TERIMA KASIH"
   ],
   "header_headers": [
-    "QTY",
-    "ITEM",
-    "PRICE",
-    "DATE",
-    "RECEIPT",
-    "TBL"
+    "QTY"
   ],
   "month_map": {
-    "Jan": "01",
-    "Feb": "02",
-    "Dec": "12"
+    "Jan": "01"
   }
 }

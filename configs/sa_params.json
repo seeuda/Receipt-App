@@ -1,34 +1,22 @@
 {
-  "country": "沙烏地阿拉伯",
+  "country": "沙烏地",
   "continent": "亞洲",
+  "sub_region": "西亞",
+  "priority": 10,
   "currency_code": "SAR",
   "keywords": [
-    "الإجمالي",
-    "TOTAL",
-    "AMOUNT DUE"
+    "الإجمالي"
   ],
   "exclude_keywords": [
-    "الضريبة",
-    "VAT",
-    "TAX",
-    "SUBTOTAL"
+    "الضريبة"
   ],
   "stop_keywords": [
-    "شكرا",
-    "THANK YOU",
-    "VISA",
-    "MASTERCARD"
+    "شكرا"
   ],
   "header_headers": [
-    "الكمية",
-    "الصنف",
-    "السعر",
-    "التاريخ",
-    "TBL"
+    "الكمية"
   ],
   "month_map": {
-    "ينا": "01",
-    "فبر": "02",
-    "ديس": "12"
+    "ينا": "01"
   }
 }

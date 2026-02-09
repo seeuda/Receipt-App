@@ -1,36 +1,22 @@
 {
   "country": "阿聯",
   "continent": "亞洲",
+  "sub_region": "西亞",
+  "priority": 10,
   "currency_code": "AED",
   "keywords": [
-    "TOTAL",
-    "NET AMOUNT",
-    "GRAND TOTAL",
-    "الإجمالي"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "VAT",
-    "TAX",
-    "SUBTOTAL",
-    "الضريبة"
+    "VAT"
   ],
   "stop_keywords": [
-    "THANK YOU",
-    "VISA",
-    "MASTERCARD",
-    "شكرا"
+    "THANK YOU"
   ],
   "header_headers": [
-    "QTY",
-    "ITEM",
-    "PRICE",
-    "DATE",
-    "TRN",
-    "TBL"
+    "QTY"
   ],
   "month_map": {
-    "Jan": "01",
-    "Feb": "02",
-    "Dec": "12"
+    "Jan": "01"
   }
 }

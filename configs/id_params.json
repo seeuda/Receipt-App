@@ -1,36 +1,22 @@
 {
   "country": "印尼",
   "continent": "亞洲",
+  "sub_region": "東南亞",
+  "priority": 10,
   "currency_code": "IDR",
   "keywords": [
-    "TOTAL",
-    "JUMLAH",
-    "GRAND TOTAL"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "PAJAK",
-    "VAT",
-    "PB1",
-    "SUBTOTAL",
-    "SERVICE CHARGE"
+    "PAJAK"
   ],
   "stop_keywords": [
-    "TERIMA KASIH",
-    "THANK YOU",
-    "VISA",
-    "MASTERCARD"
+    "TERIMA KASIH"
   ],
   "header_headers": [
-    "QTY",
-    "ITEM",
-    "HARGA",
-    "DATE",
-    "STR",
-    "TBL"
+    "QTY"
   ],
   "month_map": {
-    "Jan": "01",
-    "Feb": "02",
-    "Des": "12"
+    "Jan": "01"
   }
 }

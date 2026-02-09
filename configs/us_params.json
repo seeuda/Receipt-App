@@ -1,43 +1,22 @@
 {
   "country": "美國",
   "continent": "美洲",
+  "sub_region": "北美",
+  "priority": 1,
   "currency_code": "USD",
   "keywords": [
-    "TOTAL",
-    "AMOUNT DUE",
-    "BALANCE",
-    "GRAND TOTAL",
-    "PAID"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "SALES TAX",
-    "VAT",
-    "SUBTOTAL",
-    "TAXABLE",
-    "HST",
-    "GST"
+    "TAX"
   ],
   "stop_keywords": [
-    "THANK YOU",
-    "THANKS",
-    "VISA",
-    "MASTERCARD",
-    "AUTH",
-    "WWW."
+    "THANK YOU"
   ],
   "header_headers": [
-    "QTY",
-    "ITEM",
-    "PRICE",
-    "DATE",
-    "RECEIPT",
-    "CHK",
-    "TBL"
+    "QTY"
   ],
   "month_map": {
-    "Jan": "01",
-    "Feb": "02",
-    "Mar": "03",
-    "Dec": "12"
+    "Jan": "01"
   }
 }

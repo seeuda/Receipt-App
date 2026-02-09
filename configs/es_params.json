@@ -1,40 +1,22 @@
 {
   "country": "西班牙",
   "continent": "歐洲",
+  "sub_region": "南歐",
+  "priority": 10,
   "currency_code": "EUR",
   "keywords": [
-    "TOTAL",
-    "IMPORTE",
-    "TOTAL FACTURA",
-    "TOTAL EUR"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "IVA",
-    "NETO",
-    "BASE",
-    "SUBTOTAL",
-    "TAX",
-    "VAT"
+    "IVA"
   ],
   "stop_keywords": [
-    "GRACIAS",
-    "VISITA",
-    "VISA",
-    "MASTERCARD",
-    "WWW."
+    "GRACIAS"
   ],
   "header_headers": [
-    "CANT",
-    "CONCEPTO",
-    "PRECIO",
-    "FECHA",
-    "FACTURA",
-    "TBL"
+    "CANT"
   ],
   "month_map": {
-    "Ene": "01",
-    "Feb": "02",
-    "Mar": "03",
-    "Dic": "12"
+    "Ene": "01"
   }
 }

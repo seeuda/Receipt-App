@@ -1,36 +1,22 @@
 {
   "country": "瑞典",
   "continent": "歐洲",
+  "sub_region": "北歐",
+  "priority": 10,
   "currency_code": "SEK",
   "keywords": [
-    "TOTAL",
-    "SUMMA",
-    "ATT BETALA",
-    "IALT"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "MOMS",
-    "VAT",
-    "TAX",
-    "NETTO"
+    "MOMS"
   ],
   "stop_keywords": [
-    "TACK",
-    "VÄLKOMMEN",
-    "VISA",
-    "AUTH"
+    "TACK"
   ],
   "header_headers": [
-    "ANT",
-    "BENÄMNING",
-    "PRIS",
-    "DATUM",
-    "TBL"
+    "ANT"
   ],
   "month_map": {
-    "Jan": "01",
-    "Feb": "02",
-    "Mar": "03",
-    "Dec": "12"
+    "Jan": "01"
   }
 }

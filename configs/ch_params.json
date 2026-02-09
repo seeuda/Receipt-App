@@ -1,38 +1,22 @@
 {
   "country": "瑞士",
   "continent": "歐洲",
+  "sub_region": "中歐",
+  "priority": 10,
   "currency_code": "CHF",
   "keywords": [
-    "TOTAL",
-    "GESAMT",
-    "SOMME",
-    "TOTALE"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "MWST",
-    "TVA",
-    "IVA",
-    "SUBTOTAL",
-    "TAX"
+    "MWST"
   ],
   "stop_keywords": [
-    "DANKE",
-    "MERCI",
-    "GRAZIE",
-    "VISA",
-    "MASTERCARD"
+    "DANKE"
   ],
   "header_headers": [
-    "ART",
-    "QTY",
-    "PRICE",
-    "DATE",
-    "TBL"
+    "ART"
   ],
   "month_map": {
-    "Jan": "01",
-    "Feb": "02",
-    "Mar": "03",
-    "Dec": "12"
+    "Jan": "01"
   }
 }

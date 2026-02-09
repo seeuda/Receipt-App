@@ -1,34 +1,22 @@
 {
   "country": "巴西",
   "continent": "美洲",
+  "sub_region": "南美",
+  "priority": 10,
   "currency_code": "BRL",
   "keywords": [
-    "TOTAL",
-    "VALOR PAGO",
-    "TOTAL A PAGAR"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "ICMS",
-    "IVA",
-    "SUBTOTAL",
-    "TAXA"
+    "ICMS"
   ],
   "stop_keywords": [
-    "OBRIGADO",
-    "VOLTE SEMPRE",
-    "VISA"
+    "OBRIGADO"
   ],
   "header_headers": [
-    "QTD",
-    "DESCRIÇÃO",
-    "PREÇO",
-    "DATA",
-    "TBL"
+    "QTD"
   ],
   "month_map": {
-    "Jan": "01",
-    "Fev": "02",
-    "Mar": "03",
-    "Dez": "12"
+    "Jan": "01"
   }
 }

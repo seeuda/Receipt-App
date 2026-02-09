@@ -1,36 +1,22 @@
 {
   "country": "比利時",
   "continent": "歐洲",
+  "sub_region": "西歐",
+  "priority": 10,
   "currency_code": "EUR",
   "keywords": [
-    "TOTAL",
-    "SOMME",
-    "A PAYER",
-    "TTC"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "TVA",
-    "HT",
-    "TAX",
-    "VAT"
+    "TVA"
   ],
   "stop_keywords": [
-    "MERCI",
-    "VISA",
-    "CARTE",
-    "WWW."
+    "MERCI"
   ],
   "header_headers": [
-    "QTE",
-    "PRODUIT",
-    "PRIX",
-    "DATE",
-    "TBL"
+    "QTE"
   ],
   "month_map": {
-    "Jan": "01",
-    "Feb": "02",
-    "Maart": "03",
-    "Dec": "12"
+    "Jan": "01"
   }
 }

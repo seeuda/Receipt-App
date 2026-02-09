@@ -1,35 +1,22 @@
 {
   "country": "冰島",
   "continent": "歐洲",
+  "sub_region": "北歐",
+  "priority": 10,
   "currency_code": "ISK",
   "keywords": [
-    "SAMTALS",
-    "ALLS",
-    "TOTAL"
+    "SAMTALS"
   ],
   "exclude_keywords": [
-    "VSK",
-    "SKATTUR",
-    "TAX",
-    "VAT"
+    "VSK"
   ],
   "stop_keywords": [
-    "TAKK",
-    "VELKOMIN",
-    "VISA",
-    "AUTH"
+    "TAKK"
   ],
   "header_headers": [
-    "MAGN",
-    "LÝSING",
-    "VERÐ",
-    "DAGS",
-    "TBL"
+    "MAGN"
   ],
   "month_map": {
-    "Jan": "01",
-    "Feb": "02",
-    "Mar": "03",
-    "Des": "12"
+    "Jan": "01"
   }
 }

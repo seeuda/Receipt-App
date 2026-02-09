@@ -1,37 +1,22 @@
 {
   "country": "捷克",
   "continent": "歐洲",
+  "sub_region": "中歐",
+  "priority": 10,
   "currency_code": "CZK",
   "keywords": [
-    "CELKEM",
-    "SOUČET",
-    "CELKOVÁ ČÁSTKA",
-    "TOTAL"
+    "CELKEM"
   ],
   "exclude_keywords": [
-    "DPH",
-    "ZÁKLAD",
-    "MEZISOUČET",
-    "TAX",
-    "VAT"
+    "DPH"
   ],
   "stop_keywords": [
-    "DĚKUJEME",
-    "NA SHLEDANOU",
-    "ÚČTENKA",
-    "VISA"
+    "DĚKUJEME"
   ],
   "header_headers": [
-    "POLOŽKA",
-    "MNOŽSTVÍ",
-    "CENA",
-    "DATUM",
-    "TBL"
+    "POLOŽKA"
   ],
   "month_map": {
-    "Led": "01",
-    "Úno": "02",
-    "Bře": "03",
-    "Pro": "12"
+    "Led": "01"
   }
 }

@@ -1,35 +1,22 @@
 {
   "country": "芬蘭",
   "continent": "歐洲",
+  "sub_region": "北歐",
+  "priority": 10,
   "currency_code": "EUR",
   "keywords": [
-    "YHTEENSÄ",
-    "MAKSETTU",
-    "TOTAL"
+    "YHTEENSÄ"
   ],
   "exclude_keywords": [
-    "ALV",
-    "VERO",
-    "TAX",
-    "VAT"
+    "ALV"
   ],
   "stop_keywords": [
-    "KIITOS",
-    "TERVETULOA",
-    "VISA",
-    "AUTH"
+    "KIITOS"
   ],
   "header_headers": [
-    "MAARA",
-    "TUOTE",
-    "HINTA",
-    "PVM",
-    "TBL"
+    "MAARA"
   ],
   "month_map": {
-    "Tammi": "01",
-    "Helmi": "02",
-    "Maalis": "03",
-    "Joulu": "12"
+    "Tammi": "01"
   }
 }

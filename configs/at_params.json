@@ -1,35 +1,22 @@
 {
   "country": "奧地利",
   "continent": "歐洲",
+  "sub_region": "中歐",
+  "priority": 10,
   "currency_code": "EUR",
   "keywords": [
-    "GESAMT",
-    "SUMME",
-    "ZAHLBETRAG"
+    "GESAMT"
   ],
   "exclude_keywords": [
-    "MWST",
-    "NETTO",
-    "TAX",
-    "VAT"
+    "MWST"
   ],
   "stop_keywords": [
-    "DANKE",
-    "AUF WIEDERSEHEN",
-    "VISA",
-    "MASTERCARD"
+    "DANKE"
   ],
   "header_headers": [
-    "ARTIKEL",
-    "MENGE",
-    "PREIS",
-    "DATUM",
-    "TBL"
+    "ARTIKEL"
   ],
   "month_map": {
-    "Jan": "01",
-    "Feb": "02",
-    "Mär": "03",
-    "Dez": "12"
+    "Jan": "01"
   }
 }

@@ -1,33 +1,22 @@
 {
   "country": "墨西哥",
   "continent": "美洲",
+  "sub_region": "中南美",
+  "priority": 10,
   "currency_code": "MXN",
   "keywords": [
-    "TOTAL",
-    "TOTAL A PAGAR",
-    "IMPORTE TOTAL"
+    "TOTAL"
   ],
   "exclude_keywords": [
-    "IVA",
-    "SUBTOTAL",
-    "IMPUESTO"
+    "IVA"
   ],
   "stop_keywords": [
-    "GRACIAS",
-    "VISA",
-    "MASTERCARD"
+    "GRACIAS"
   ],
   "header_headers": [
-    "CANT",
-    "CONCEPTO",
-    "PRECIO",
-    "FECHA",
-    "TBL"
+    "CANT"
   ],
   "month_map": {
-    "Ene": "01",
-    "Feb": "02",
-    "Mar": "03",
-    "Dic": "12"
+    "Ene": "01"
   }
 }

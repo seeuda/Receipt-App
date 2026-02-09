@@ -1,38 +1,22 @@
 {
   "country": "土耳其",
   "continent": "歐洲",
+  "sub_region": "中歐",
+  "priority": 10,
   "currency_code": "TRY",
   "keywords": [
-    "TOPLAM",
-    "GENEL TOPLAM",
-    "TOPLAM TUTAR"
+    "TOPLAM"
   ],
   "exclude_keywords": [
-    "KDV",
-    "MATRAH",
-    "ARA TOPLAM",
-    "TAX",
-    "VAT"
+    "KDV"
   ],
   "stop_keywords": [
-    "TEŞEKKÜR",
-    "YİNE BEKLERİZ",
-    "FİŞ",
-    "VISA",
-    "WWW."
+    "TEŞEKKÜR"
   ],
   "header_headers": [
-    "ÜRÜN",
-    "ADET",
-    "FİYAT",
-    "TUTAR",
-    "TARİH",
-    "SLIP"
+    "ÜRÜN"
   ],
   "month_map": {
-    "Oca": "01",
-    "Şub": "02",
-    "Mar": "03",
-    "Ara": "12"
+    "Oca": "01"
   }
 }
