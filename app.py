@@ -232,9 +232,9 @@ def main():
         # 恢復提示框資訊
         st.info("💡 沒有您的專案？請複製範本、建立新專案並完成授權。")
         
-        st.link_button("📥 1. 連結範本建立歸屬試算表", "https://docs.google.com/spreadsheets/d/15kD4ZMYEZvN3unbIhkH8b69KAVpiiKP-TA4q3pYJ86k/edit?usp=sharing", use_container_width=True)
+        st.link_button("📥 連結範本建立歸屬試算表", "https://docs.google.com/spreadsheets/d/15kD4ZMYEZvN3unbIhkH8b69KAVpiiKP-TA4q3pYJ86k/edit?usp=sharing", use_container_width=True)
         
-        with st.expander("2. 註冊新專案至系統"):
+        with st.expander("註冊新專案至系統"):
             new_p_name = st.text_input("專案名稱 (例: 2024德國考察)")
             new_p_id = st.text_input("試算表 ID")
             if st.button("確認註冊", use_container_width=True):
