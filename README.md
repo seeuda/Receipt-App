@@ -1,6 +1,6 @@
 # 考察支出登錄系統 (Receipt-App)
 
-本專案是一款基於 **Python** 與 **Streamlit** 開發的 AI 自動化工具，專為跨國考察設計。透過 Google Cloud Vision AI 辨識多國收據資訊，自動換算匯率並同步至 Google Sheets，解決跨國報帳時格式不一、匯率計算繁瑣與人工輸入錯誤的痛點。
+本專案是一款基於 **Python** 與 **Streamlit** 開發的跨國支出記帳工具，專為機關辦理出國計畫的現場經費執行人員設計。使用者將收據拍照上傳，透過 Google Cloud Vision AI 辨識多國收據資訊，自動換算匯率，並可經人工確認或修正後，同步至自行指定的Google Sheets。
 
 ## 🌟 核心特色
 
