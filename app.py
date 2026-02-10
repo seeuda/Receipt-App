@@ -9,7 +9,7 @@ from PIL import Image
 import yfinance as yf
 from typing import Dict, List, Tuple, Optional
 
-# --- I. 核心數據中心 (Data Engine) ---
+# --- I. 數據中心與匯率引擎 ---
 
 def init_session() -> None:
     """初始化工作區狀態與參數追蹤"""
@@ -35,7 +35,7 @@ def get_gspread_client():
 
 @st.cache_data(ttl=3600)
 def get_rate_by_date(currency_code: str, target_date: datetime.date) -> float:
-    """依日期抓取歷史匯率，支援回溯機制"""
+    """依日期抓取歷史匯率"""
     if currency_code == "TWD": return 1.0
     try:
         ticker = yf.Ticker(f"{currency_code}TWD=X")
@@ -46,10 +46,10 @@ def get_rate_by_date(currency_code: str, target_date: datetime.date) -> float:
         return round(fb['Close'].asof(pd.Timestamp(target_date)), 2)
     except Exception: return 35.0
 
-# --- II. 專案管理邏輯 (含標題自適應) ---
+# --- II. 專案管理與動態註冊邏輯 ---
 
 def load_project_registry() -> Dict[str, str]:
-    """動態解析管理總表標題並讀取專案"""
+    """解析管理總表標題索引並讀取專案"""
     try:
         gc = get_gspread_client()
         sh = gc.open_by_key(st.secrets["admin_registry_id"])
@@ -64,7 +64,7 @@ def load_project_registry() -> Dict[str, str]:
     except Exception: return {}
 
 def add_project_to_registry(name: str, sheet_id: str) -> bool:
-    """自動辨識欄位位置並註冊新專案 (相容 Google 表單時間戳記)"""
+    """自動辨識欄位位置並註冊新專案 (相容 Google Form 時間戳記)"""
     try:
         gc = get_gspread_client()
         sh = gc.open_by_key(st.secrets["admin_registry_id"])
@@ -85,14 +85,13 @@ def add_project_to_registry(name: str, sheet_id: str) -> bool:
         new_row[idx_id] = sheet_id
         new_row[idx_status] = "TRUE"
         
-        # 處理 A 欄時間戳記：若為表單欄位則填入當前時間
         if headers[0] == "時間戳記" or "Timestamp" in headers[0]:
             new_row[0] = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
 
         wks.append_row(new_row, value_input_option='USER_ENTERED')
         return True
     except Exception as e:
-        st.error(f"註冊發生技術錯誤: {e}"); return False
+        st.error(f"註冊技術錯誤: {e}"); return False
 
 def load_project_users(tid: str) -> List[str]:
     """載入專案人員名單"""
@@ -102,7 +101,7 @@ def load_project_users(tid: str) -> List[str]:
     except Exception: return []
 
 def load_all_configs() -> Dict:
-    """載入多國在地化 JSON 配置"""
+    """載入多國在地化 JSON 配置檔"""
     configs = {}
     emoji_map = {"de": "🇩🇪", "at": "🇦🇹", "ch": "🇨🇭", "cz": "🇨🇿", "pl": "🇵🇱", "tr": "🇹🇷", "gb": "🇬🇧", "fr": "🇫🇷", "nl": "🇳🇱", "be": "🇧🇪", "ie": "🇮🇪", "dk": "🇩🇰", "no": "🇳🇴", "se": "🇸🇪", "fi": "🇫🇮", "is": "🇮🇸", "it": "🇮🇹", "es": "🇪🇸", "pt": "🇵🇹", "gr": "🇬🇷", "tw": "🇹🇼", "jp": "🇯🇵", "kr": "🇰🇷", "sg": "🇸🇬", "vn": "🇻🇳", "th": "🇹🇭", "my": "🇲🇾", "ph": "🇵🇭", "id": "🇮🇩", "in": "🇮🇳", "ae": "🇦🇪", "il": "🇮🇱", "sa": "🇸🇦", "us": "🇺🇸", "ca": "🇨🇦", "br": "🇧🇷", "mx": "🇲🇽", "au": "🇦🇺", "nz": "🇳🇿", "za": "🇿🇦"}
     for f in glob.glob("configs/*.json"):
@@ -111,10 +110,10 @@ def load_all_configs() -> Dict:
             d = json.load(j); label = f"{emoji_map.get(iso, '🌐')} {d.get('country', iso)}"; configs[label] = d
     return configs
 
-# --- III. 智慧辨識引擎 (語義強化版) ---
+# --- III. 智慧辨識引擎 (語義與過濾強化版) ---
 
 def normalize_date_pro(text: str, params: Dict, target_year: int):
-    """依照在地化參數解析日期"""
+    """依照 date_order 與在地化月份解析日期"""
     m_map = params.get('month_map', {}); order = params.get('date_order', 'YMD')
     t_c = text.replace("'", " ").replace("/", " ").replace("-", " ").replace(".", " ")
     for m_n, m_v in sorted(m_map.items(), key=lambda x: len(x[0]), reverse=True):
@@ -138,7 +137,7 @@ def normalize_date_pro(text: str, params: Dict, target_year: int):
     return datetime(target_year, 1, 1).date(), -1
 
 def extract_data(text: str, params: Dict, date_idx: int) -> Tuple[str, float, str]:
-    """語義強化提取：精確過濾地址雜訊與標頭"""
+    """語義強化提取：精確過濾地址、雜訊標頭並處理分組金額"""
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     if not lines: return "未知商店", 0.0, ""
     
@@ -147,7 +146,7 @@ def extract_data(text: str, params: Dict, date_idx: int) -> Tuple[str, float, st
     tax_re = re.compile(params.get('tax_symbols', r'(\*)'), re.I)
     h_skips = [s.upper() for s in params.get('header_skips', [])]
 
-    # 1. 商店名稱辨識 (跳過地址與標頭)
+    # 1. 商店名稱辨識
     shop_name = "未知商店"
     for l in lines:
         l_up = l.upper()
@@ -157,7 +156,7 @@ def extract_data(text: str, params: Dict, date_idx: int) -> Tuple[str, float, st
         if l.isdigit() and len(l) <= 6: continue
         shop_name = l; break
 
-    # 2. 金額提取 (適應在地化分隔符)
+    # 2. 金額提取
     cands = []
     for i, line in enumerate(lines):
         prices = re.findall(r'(-?\d+[' + re.escape(t_sep + d_sep) + r']\d{2,3})', line)
@@ -171,7 +170,7 @@ def extract_data(text: str, params: Dict, date_idx: int) -> Tuple[str, float, st
     best = sorted(cands, key=lambda x: x['score'], reverse=True)[0] if cands else {'val': 0.0, 'idx': len(lines)}
     f_amt, t_idx = best['val'], best['idx']
 
-    # 3. 品項摘要 (過濾地址與日期行)
+    # 3. 品項摘要提取 (嚴格排除地址與雜訊日期)
     name_q, start_idx = [], lines.index(shop_name) + 1 if shop_name in lines else 1
     for line in lines[start_idx:t_idx]:
         if any(sk in line.upper() for sk in params.get('stop_keywords', [])): break
@@ -185,7 +184,7 @@ def extract_data(text: str, params: Dict, date_idx: int) -> Tuple[str, float, st
     return shop_name, f_amt, summary
 
 def sync_to_sheets(df: pd.DataFrame, u_n: str, c_c: str, tid: str) -> Tuple[int, int]:
-    """同步資料並標定 UID 於 M 欄"""
+    """資料同步並標定 UID 於第 13 欄 (M)"""
     try:
         gc = get_gspread_client(); sh = gc.open_by_key(tid); wks = sh.get_worksheet(0)
         uids = set(wks.col_values(13)[1:]); now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -194,6 +193,7 @@ def sync_to_sheets(df: pd.DataFrame, u_n: str, c_c: str, tid: str) -> Tuple[int,
             uid = hashlib.md5(f"{r['商店名稱']}{r['消費日期']}{r['外幣金額']}".encode()).hexdigest()
             if uid in uids: skip += 1; continue
             base = r["外幣金額"] * r["匯率"]
+            # 寫入 13 欄位 A-M，UID 置於末端
             to_app.append([now, u_n, r["商店名稱"], r["參考品項"], str(r["消費日期"]), r["外幣金額"], c_c, r["匯率"], round(base,0), round(base*0.015,0), round(base*1.015,0), r["備註"], uid])
         if to_app: wks.append_rows(to_app, value_input_option='USER_ENTERED')
         return len(to_app), skip
@@ -206,7 +206,6 @@ def main():
     st.set_page_config(page_title="考察支出登錄系統", layout="wide")
     init_session(); all_cfg = load_all_configs(); registry = load_project_registry()
 
-    # --- Sidebar 佈局調整 ---
     with st.sidebar:
         # 1. 專案選擇 (優先)
         st.header("🏢 專案選擇")
@@ -219,7 +218,7 @@ def main():
         
         st.markdown("---")
 
-        # 2. 辨識控制
+        # 2. 辨識控制 (中部)
         st.header("⚙️ 辨識控制")
         t_year = st.number_input("📅 年度鎖定", value=2025)
         debug = st.checkbox("🔍 OCR 偵錯模式")
@@ -230,6 +229,9 @@ def main():
 
         # 3. 建立新專案 (底部)
         st.header("🆕 建立新專案")
+        # 恢復提示框資訊
+        st.info("💡 沒有您的專案？請複製範本、建立新專案並完成授權。")
+        
         st.link_button("📥 1. 連結範本建立歸屬試算表", "https://docs.google.com/spreadsheets/d/15kD4ZMYEZvN3unbIhkH8b69KAVpiiKP-TA4q3pYJ86k/edit?usp=sharing", use_container_width=True)
         
         with st.expander("2. 註冊新專案至系統"):
@@ -242,7 +244,7 @@ def main():
                     else: st.error("❌ 註冊失敗 (ID 重複或格式錯誤)")
                 else: st.warning("請填寫完整資訊")
 
-    # --- Main UI: 區域與報帳資料 ---
+    # --- Main UI ---
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         sel_u = st.selectbox("報帳人員", u_l + ["其他"]) if u_l else st.text_input("人員姓名")
@@ -259,7 +261,7 @@ def main():
         s_c = sorted(reg_map[sel_reg], key=lambda x: (x[1].get('priority', 100), x[0]))
         sel_l = st.selectbox("📍 記帳國家", [i[0] for i in s_c]); p = next(i[1] for i in s_c if i[0] == sel_l)
         
-        # 參數連動快取重置
+        # 參數變更檢測刷新快取
         cur_k = f"{sel_l}_{t_year}"
         if st.session_state['last_config_key'] != cur_k:
             st.session_state['processed_hashes'] = set(); st.session_state['last_config_key'] = cur_k
@@ -302,7 +304,6 @@ def main():
             except Exception as e: st.error(f"辨識異常: {e}")
 
     if st.session_state['data']:
-        st.markdown("### 📝 暫存編輯區")
         edf = st.data_editor(pd.DataFrame(st.session_state['data']), use_container_width=True)
         bc1, bc2 = st.columns(2)
         with bc1:
