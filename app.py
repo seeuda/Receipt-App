@@ -22,7 +22,7 @@ def init_session() -> None:
         st.session_state['last_config_key'] = ""
 
 def calculate_salted_uid(file_content: bytes, user_name: str) -> str:
-    """計算加鹽後的唯一識別碼 (Salted UID) 以支援修正後覆蓋"""
+    """結合檔案指紋與姓名生成 UID，確保同一人修正同一張收據時可覆蓋舊資料"""
     file_hash = hashlib.md5(file_content).hexdigest()
     return hashlib.md5(f"{file_hash}{user_name}".encode()).hexdigest()
 
@@ -50,7 +50,7 @@ def get_rate_by_date(currency_code: str, target_date: datetime.date) -> float:
 # --- II. 專案管理與動態註冊邏輯 ---
 
 def load_project_registry() -> Dict[str, str]:
-    """解析管理總表並讀取專案 """
+    """讀取管理總表"""
     try:
         gc = get_gspread_client()
         sh = gc.open_by_key(st.secrets["admin_registry_id"])
@@ -65,7 +65,7 @@ def load_project_registry() -> Dict[str, str]:
     except Exception: return {}
 
 def add_project_to_registry(name: str, sheet_id: str) -> bool:
-    """註冊新專案，自動處理時間戳記避讓 """
+    """註冊新專案，相容 Google Form 時間戳記"""
     try:
         gc = get_gspread_client(); sh = gc.open_by_key(st.secrets["admin_registry_id"])
         wks = sh.get_worksheet(0); headers = wks.row_values(1)
@@ -82,26 +82,25 @@ def add_project_to_registry(name: str, sheet_id: str) -> bool:
     except Exception: return False
 
 def load_project_users(tid: str) -> List[str]:
-    """載入專案人員名單 """
+    """載入專案名單"""
     try:
         gc = get_gspread_client(); sh = gc.open_by_key(tid); wks = sh.worksheet("人員名單")
         return [n for n in wks.col_values(1)[1:] if n.strip()]
     except Exception: return []
 
 def load_all_configs() -> Dict:
-    """載入多國在地化 JSON 配置檔 """
+    """載入多國在地化 JSON 配置檔"""
     configs = {}
-    emoji_map = {"tw": "🇹🇼", "jp": "🇯🇵", "de": "🇩🇪", "us": "🇺🇸", "gb": "🇬🇧", "fr": "🇫🇷", "kr": "🇰🇷", "vn": "🇻🇳", "th": "🇹🇭"}
     for f in glob.glob("configs/*.json"):
         iso = os.path.basename(f).split('_')[0].lower()
         with open(f, 'r', encoding='utf-8') as j:
-            d = json.load(j); label = f"{emoji_map.get(iso, '🌐')} {d.get('country', iso)}"; configs[label] = d
+            d = json.load(j); configs[d.get('country', iso)] = d
     return configs
 
-# --- III. 智慧辨識引擎 (語義提取) ---
+# --- III. 智慧辨識引擎 ---
 
 def normalize_date_pro(text: str, params: Dict, target_year: int):
-    """依照在地化參數解析收據日期 """
+    """解析收據日期"""
     order = params.get('date_order', 'YMD')
     t_c = text.replace("/", " ").replace("-", " ").replace(".", " ")
     lines = t_c.splitlines()
@@ -116,7 +115,7 @@ def normalize_date_pro(text: str, params: Dict, target_year: int):
     return datetime(target_year, 1, 1).date(), -1
 
 def extract_data(text: str, params: Dict, date_idx: int) -> Tuple[str, float, str]:
-    """語義強化提取：商店名稱、金額、參考品項 """
+    """提取商店、金額與品項"""
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     if not lines: return "未知商店", 0.0, ""
     d_sep, t_sep = params.get('decimal_sep', '.'), params.get('thousand_sep', ',')
@@ -148,51 +147,47 @@ def extract_data(text: str, params: Dict, date_idx: int) -> Tuple[str, float, st
         if len(clean_l) > 1 and not clean_l.replace('.','').replace(',','').replace(" ","").isdigit(): nq.append(clean_l)
     return shop_name, best['val'], "、".join(list(dict.fromkeys(nq))[:3])
 
-# --- IV. 雲端同步引擎 (Upsert 支援) ---
+# --- IV. 雲端同步引擎 (Upsert) ---
 
 def sync_to_sheets(df: pd.DataFrame, u_n: str, c_c: str, tid: str) -> Tuple[int, int]:
-    """同步資料：比對 M 欄 UID，存在則覆蓋，不存在則新增 """
+    """支援 UID 覆蓋更新"""
     try:
         gc = get_gspread_client(); sh = gc.open_by_key(tid); wks = sh.get_worksheet(0)
-        existing_uids = wks.col_values(13) # M 欄為 UID
+        uids = wks.col_values(13) # M 欄
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        to_append, upd_count = [], 0
+        to_app, upd_count = [], 0
         
         for _, r in df.iterrows():
             uid = r["UID"]
             base = r["外幣金額"] * r["匯率"]
             row = [now, u_n, r["商店名稱"], r["參考品項"], str(r["消費日期"]), r["外幣金額"], c_c, r["匯率"], round(base,0), round(base*0.015,0), round(base*1.015,0), r["備註"], uid]
             
-            if uid in existing_uids:
-                row_idx = existing_uids.index(uid) + 1
-                wks.update(f"A{row_idx}:M{row_idx}", [row], value_input_option='USER_ENTERED')
+            if uid in uids:
+                wks.update(f"A{uids.index(uid)+1}:M{uids.index(uid)+1}", [row], value_input_option='USER_ENTERED')
                 upd_count += 1
             else:
-                to_append.append(row)
+                to_app.append(row)
         
-        if to_append: wks.append_rows(to_append, value_input_option='USER_ENTERED')
-        return len(to_append), upd_count
+        if to_app: wks.append_rows(to_app, value_input_option='USER_ENTERED')
+        return len(to_app), upd_count
     except Exception as e:
         st.error(f"同步異常: {e}"); return 0, 0
 
-# --- V. UI 主程式 (恢復結構對齊版) ---
+# --- V. UI 主程式 (包含影像預覽) ---
 
 def main():
     st.set_page_config(page_title="考察支出登錄系統", layout="wide")
     init_session(); all_cfg = load_all_configs(); registry = load_project_registry()
 
     with st.sidebar:
-        # 1. 專案選擇 (頂部)
         st.header("🏢 專案選擇")
         if registry:
             sel_p = st.selectbox("請選擇執行專案", list(registry.keys())); tid = registry[sel_p]
             u_l = load_project_users(tid)
-            if not u_l: st.info("ℹ️ 提示：請在開啟試算表後，於『人員名單』分頁填入報帳姓名。")
         else:
-            st.warning("⚠️ 查無授權專案。"); tid = None; u_l = []
+            st.warning("⚠️ 查無專案"); tid = None; u_l = []
         
         st.markdown("---")
-        # 2. 辨識控制 (中部)
         st.header("⚙️ 辨識控制")
         t_year = st.number_input("📅 年度鎖定", value=2026)
         debug = st.checkbox("🔍 OCR 偵錯模式")
@@ -200,19 +195,13 @@ def main():
             st.session_state['data'] = []; st.session_state['processed_hashes'] = set(); st.rerun()
             
         st.markdown("---")
-        # 3. 建立與註冊 (底部)
         st.header("🆕 建立新專案")
-        st.info("💡 沒有您的專案？請複製範本、建立新專案並完成授權。")
-        st.link_button("📥 連結範本建立歸屬試算表", "https://docs.google.com/spreadsheets/d/15kD4ZMYEZvN3unbIhkH8b69KAVpiiKP-TA4q3pYJ86k/edit?usp=sharing", use_container_width=True)
-        
-        with st.expander("註冊新專案至系統"):
-            new_p_name = st.text_input("專案名稱")
-            new_p_id = st.text_input("試算表 ID")
-            if st.button("確認註冊", use_container_width=True) and new_p_name and new_p_id:
-                if add_project_to_registry(new_p_name, new_p_id):
-                    st.success("✅ 註冊成功，請刷新。"); st.rerun()
+        st.link_button("📥 範本連結", "https://docs.google.com/spreadsheets/d/15kD4ZMYEZvN3unbIhkH8b69KAVpiiKP-TA4q3pYJ86k/edit?usp=sharing", use_container_width=True)
+        with st.expander("註冊新專案"):
+            n_p = st.text_input("名稱"); i_p = st.text_input("ID")
+            if st.button("確認註冊") and n_p and i_p:
+                if add_project_to_registry(n_p, i_p): st.success("成功"); st.rerun()
 
-    # --- Main UI: 多欄位排版 ---
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         sel_u = st.selectbox("報帳人員", u_l + ["其他"]) if u_l else st.text_input("人員姓名")
@@ -223,11 +212,22 @@ def main():
         f_r = get_rate_by_date(p['currency_code'], datetime.now().date())
         st.number_input(f"預設匯率 ({p['currency_code']})", value=float(f_r), step=0.01)
     with c4:
-        st.write("🔗 快速操作")
         if tid: st.link_button("📂 開啟試算表", f"https://docs.google.com/spreadsheets/d/{tid}/edit", use_container_width=True)
 
     st.markdown("---")
-    files = st.file_uploader("📸 批次上傳收據 (JPG/PNG)", accept_multiple_files=True, type=['jpg', 'jpeg', 'png'])
+    files = st.file_uploader("📸 批次上傳收據", accept_multiple_files=True, type=['jpg', 'jpeg', 'png'])
+
+    # --- 恢復影像預覽區塊 ---
+    if files:
+        with st.expander("🖼️ 影像預覽與狀態", expanded=True):
+            img_c = st.columns(5)
+            for idx, f in enumerate(files):
+                f.seek(0); content = f.read()
+                # 預覽圖使用加鹽 UID 檢查狀態
+                uid_check = calculate_salted_uid(content, final_u)
+                with img_c[idx % 5]:
+                    st.image(Image.open(io.BytesIO(content)), use_container_width=True)
+                    st.caption(f"#{idx+1} {'⚠️ 待更新' if any(d['UID'] == uid_check for d in st.session_state['data']) else '🟢 待辨識'}")
 
     if files and st.button("🚀 執行 AI 自動辨識", type="primary", use_container_width=True):
         if not tid: st.error("❌ 未選擇專案")
@@ -237,7 +237,7 @@ def main():
                 st.session_state['data'] = [] 
                 for f in files:
                     f.seek(0); content = f.read()
-                    salted_uid = calculate_salted_uid(content, final_u) # 使用 Salted UID
+                    salted_uid = calculate_salted_uid(content, final_u)
                     txt = client.document_text_detection(image=vision.Image(content=content)).full_text_annotation.text
                     if debug: st.code(txt)
                     d, d_i = normalize_date_pro(txt, p, t_year)
@@ -248,11 +248,11 @@ def main():
             except Exception as e: st.error(f"辨識異常: {e}")
 
     if st.session_state['data']:
-        st.info("💡 修正錯誤後同步，系統將依據圖片指紋自動更新雲端對應資料。")
+        st.info("💡 修正錯誤後點擊同步，系統將覆蓋雲端舊有資料。")
         edf = st.data_editor(pd.DataFrame(st.session_state['data']), use_container_width=True)
         if st.button("📤 同步至雲端", type="primary", use_container_width=True):
             sc, uc = sync_to_sheets(edf, final_u, p['currency_code'], tid)
-            st.success(f"✅ 同步完成：新增 {sc} 筆，覆蓋更新 {uc} 筆。")
+            st.success(f"✅ 新增 {sc} 筆，覆蓋更新 {uc} 筆。")
             st.session_state['data'] = []; st.rerun()
 
 if __name__ == "__main__": main()
