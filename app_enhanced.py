@@ -14,6 +14,20 @@ from typing import Dict, List, Tuple, Optional, Any
 # I. 基礎設施：數據中心、影像引擎與授權
 # ==========================================
 
+def ensure_configs_exist():
+    """
+    自動化防呆：若雲端環境缺少 JSON 配置，則呼叫腳本生成。
+    """
+    if not os.path.exists("configs") or not glob.glob("configs/*.json"):
+        st.info("🔄 偵測到配置缺失，正在初始化 40 國在地化參數...")
+        try:
+            # 直接引用 generate_configs.py 的核心邏輯或執行該檔案
+            import generate_configs
+            generate_configs.main()
+            st.success("✅ 配置初始化完成")
+        except Exception as e:
+            st.error(f"❌ 配置生成失敗: {e}")
+
 def init_session() -> None:
     """
     初始化 Streamlit Session 狀態。
@@ -312,7 +326,7 @@ def main():
     for f in config_files:
         iso_code = os.path.basename(f).split('_')[0].lower()
         with open(f, 'r', encoding='utf-8') as j:
-            all_configs[iso_code] = json.load(j)
+            all_configs[iso_code] = json.load(j)           
             
     project_registry = load_project_registry()
 
