@@ -13,21 +13,17 @@ from typing import Dict, List, Tuple, Optional, Any
 # --- I. 數據中心與財務引擎 ---
 
 def init_session() -> None:
-    """初始化工作區狀態"""
     if 'data' not in st.session_state: 
         st.session_state['data'] = []
     if 'diagnostics' not in st.session_state:
         st.session_state['diagnostics'] = []
-    if 'processed_hashes' not in st.session_state: 
-        st.session_state['processed_hashes'] = set()
 
 def calculate_salted_uid(file_content: bytes, user_name: str) -> str:
-    """計算 MD5(File + Name) 以實現個人化覆蓋邏輯"""
+    """檔案 MD5 + 姓名加鹽，確保修正紀錄的個人化隔離"""
     file_hash = hashlib.md5(file_content).hexdigest()
     return hashlib.md5(f"{file_hash}{user_name}".encode()).hexdigest()
 
 def get_gspread_client():
-    """安全授權 Google Sheets API"""
     creds_info = st.secrets["gcp_service_account"]
     creds = service_account.Credentials.from_service_account_info(
         creds_info, 
@@ -37,7 +33,6 @@ def get_gspread_client():
 
 @st.cache_data(ttl=3600)
 def get_rate_by_date(currency_code: str, target_date: datetime.date) -> float:
-    """依日期抓取歷史匯率"""
     if currency_code == "TWD": return 1.0
     try:
         ticker = yf.Ticker(f"{currency_code}TWD=X")
@@ -47,10 +42,9 @@ def get_rate_by_date(currency_code: str, target_date: datetime.date) -> float:
         return 35.0
     except Exception: return 35.0
 
-# --- II. 專案管理與區域分類邏輯 ---
+# --- II. 專案管理與配置讀取 ---
 
 def load_project_registry() -> Dict[str, str]:
-    """讀取管理總表"""
     try:
         gc = get_gspread_client()
         sh = gc.open_by_key(st.secrets["admin_registry_id"])
@@ -64,11 +58,12 @@ def load_project_registry() -> Dict[str, str]:
     except Exception: return {}
 
 def add_project_to_registry(name: str, sheet_id: str) -> bool:
-    """註冊新專案，自動處理標題索引位移"""
     try:
         gc = get_gspread_client(); sh = gc.open_by_key(st.secrets["admin_registry_id"])
         wks = sh.get_worksheet(0); h = wks.row_values(1)
-        idx_n, idx_i, idx_s = h.index(next(x for x in h if "專案名稱" in x)), h.index(next(x for x in h if "試算表 ID" in x)), h.index(next(x for x in h if "啟用狀態" in x))
+        idx_n = h.index(next(x for x in h if "專案名稱" in x))
+        idx_i = h.index(next(x for x in h if "試算表 ID" in x))
+        idx_s = h.index(next(x for x in h if "啟用狀態" in x))
         if sheet_id in wks.col_values(idx_i + 1): return False
         new_row = [""] * len(h)
         new_row[idx_n], new_row[idx_i], new_row[idx_s] = name, sheet_id, "TRUE"
@@ -77,7 +72,6 @@ def add_project_to_registry(name: str, sheet_id: str) -> bool:
     except: return False
 
 def load_all_configs() -> Dict:
-    """載入多國配置與 Emoji 映射"""
     configs = {}
     emoji_map = {"tw": "🇹🇼", "jp": "🇯🇵", "kr": "🇰🇷", "sg": "🇸🇬", "vn": "🇻🇳", "th": "🇹🇭", "my": "🇲🇾", "ph": "🇵🇭", "id": "🇮🇩", "in": "🇮🇳", "ae": "🇦🇪", "il": "🇮🇱", "sa": "🇸🇦", "de": "🇩🇪", "at": "🇦🇹", "ch": "🇨🇭", "cz": "🇨🇿", "pl": "🇵🇱", "tr": "🇹🇷", "gb": "🇬🇧", "fr": "🇫🇷", "nl": "🇳🇱", "be": "🇧🇪", "ie": "🇮🇪", "dk": "🇩🇰", "no": "🇳🇴", "se": "🇸🇪", "fi": "🇫🇮", "is": "🇮🇸", "it": "🇮🇹", "es": "🇪🇸", "pt": "🇵🇹", "gr": "🇬🇷", "us": "🇺🇸", "ca": "🇨🇦", "br": "🇧🇷", "mx": "🇲🇽", "au": "🇦🇺", "nz": "🇳🇿", "za": "🇿🇦"}
     for f in glob.glob("configs/*.json"):
@@ -86,16 +80,19 @@ def load_all_configs() -> Dict:
             d = json.load(j); d['emoji'] = emoji_map.get(iso, "🌐"); configs[iso] = d
     return configs
 
-# --- III. 地址特徵辨識與結構化診斷 ---
+# --- III. 地址特徵辨識邏輯 ---
 
 def is_address_feature(line: str, params: Dict) -> bool:
-    """基於文字特徵判定是否為地址，而非依賴標題字眼"""
+    """純文字特徵判定是否為地址"""
     addr_re = re.compile(params.get('address_regex', r'(Tel:)|(Fax:)'), re.I)
     if addr_re.search(line): return True
+    # 郵遞區號與數字規律
     if re.search(r'\b\d{5}\b', line) or re.search(r'\b\d{3}-\d{4}\b', line): return True
-    digit_ratio = sum(c.isdigit() for c in line) / (len(line) + 1)
-    symbol_density = sum(c in ",-/#." for c in line)
-    if digit_ratio > 0.3 and symbol_density >= 2: return True
+    # 數字與符號密度判定 (門牌特徵)
+    if len(line) > 0:
+        digit_ratio = sum(c.isdigit() for c in line) / len(line)
+        symbol_density = sum(c in ",-/#." for c in line)
+        if digit_ratio > 0.3 and symbol_density >= 2: return True
     return False
 
 def classify_diagnose(lines: List[str], params: Dict) -> List[Dict]:
@@ -173,7 +170,7 @@ def main():
     all_cfg = load_all_configs(); registry = load_project_registry()
 
     with st.sidebar:
-        # 1. 專案選擇 (頂部) 
+        # 1. 專案選擇
         st.header("🏢 專案選擇")
         if registry:
             sel_p = st.selectbox("請選擇執行專案", list(registry.keys())); tid = registry[sel_p]
@@ -184,14 +181,14 @@ def main():
         else: st.warning("⚠️ 查無專案"); tid, u_l = None, []
         
         st.markdown("---")
-        # 2. 辨識控制 (中部) 
+        # 2. 辨識控制
         st.header("⚙️ 辨識控制")
         t_year = st.number_input("📅 年度鎖定", value=2026); debug = st.checkbox("🔍 OCR 診斷模式")
         if st.button("清空目前列表", use_container_width=True):
             st.session_state['data'], st.session_state['diagnostics'] = [], []; st.rerun()
             
         st.markdown("---")
-        # 3. 建立、註冊與回報連結 (底部) 
+        # 3. 建立與註冊
         st.header("🆕 建立新專案")
         st.link_button("📥 範本連結", "https://docs.google.com/spreadsheets/d/15kD4ZMYEZvN3unbIhkH8b69KAVpiiKP-TA4q3pYJ86k/edit?usp=sharing", use_container_width=True)
         with st.expander("註冊新專案至系統"):
@@ -200,10 +197,11 @@ def main():
                 if add_project_to_registry(n_p, i_p): st.success("註冊成功"); st.rerun()
         
         st.markdown("---")
+        # 4. 客服支援 (確保位於側欄最底端)
         st.header("🆘 客服支援")
         st.link_button("💬 小幫手問題回報中心", "https://line.me/ti/g/twX_HfMGBd", use_container_width=True)
 
-    # --- Main UI 4 欄排版 --- 
+    # --- Main UI ---
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         sel_u = st.selectbox("報帳人員", u_l + ["其他"]) if u_l else st.text_input("人員姓名")
@@ -228,7 +226,7 @@ def main():
     files = st.file_uploader("📸 批次上傳收據", accept_multiple_files=True, type=['jpg', 'jpeg', 'png'])
 
     if files:
-        with st.expander("🖼️ 影像預覽與狀態", expanded=True): [cite: 3]
+        with st.expander("🖼️ 影像預覽與狀態", expanded=True):
             img_c = st.columns(5)
             for idx, f in enumerate(files):
                 f.seek(0); content = f.read(); uid_check = calculate_salted_uid(content, final_u)
