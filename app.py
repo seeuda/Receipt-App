@@ -13,17 +13,19 @@ from typing import Dict, List, Tuple, Optional, Any
 # --- I. 數據中心與財務引擎 ---
 
 def init_session() -> None:
+    """初始化工作區狀態"""
     if 'data' not in st.session_state: 
         st.session_state['data'] = []
     if 'diagnostics' not in st.session_state:
         st.session_state['diagnostics'] = []
 
 def calculate_salted_uid(file_content: bytes, user_name: str) -> str:
-    """計算 MD5(File + Name) 以實現個人化覆蓋邏輯"""
+    """檔案 MD5 + 姓名加鹽，確保修正紀錄的個人化隔離"""
     file_hash = hashlib.md5(file_content).hexdigest()
     return hashlib.md5(f"{file_hash}{user_name}".encode()).hexdigest()
 
 def get_gspread_client():
+    """安全授權 Google Sheets API"""
     creds_info = st.secrets["gcp_service_account"]
     creds = service_account.Credentials.from_service_account_info(
         creds_info, 
@@ -33,6 +35,7 @@ def get_gspread_client():
 
 @st.cache_data(ttl=3600)
 def get_rate_by_date(currency_code: str, target_date: datetime.date) -> float:
+    """依日期抓取歷史匯率"""
     if currency_code == "TWD": return 1.0
     try:
         ticker = yf.Ticker(f"{currency_code}TWD=X")
@@ -42,9 +45,10 @@ def get_rate_by_date(currency_code: str, target_date: datetime.date) -> float:
         return 35.0
     except Exception: return 35.0
 
-# --- II. 專案管理與區域分類邏輯 ---
+# --- II. 專案管理與區域分類 ---
 
 def load_project_registry() -> Dict[str, str]:
+    """讀取管理總表"""
     try:
         gc = get_gspread_client()
         sh = gc.open_by_key(st.secrets["admin_registry_id"])
@@ -58,6 +62,7 @@ def load_project_registry() -> Dict[str, str]:
     except Exception: return {}
 
 def add_project_to_registry(name: str, sheet_id: str) -> bool:
+    """註冊新專案，自動處理標題索引位移"""
     try:
         gc = get_gspread_client(); sh = gc.open_by_key(st.secrets["admin_registry_id"])
         wks = sh.get_worksheet(0); h = wks.row_values(1)
@@ -70,6 +75,7 @@ def add_project_to_registry(name: str, sheet_id: str) -> bool:
     except: return False
 
 def load_all_configs() -> Dict:
+    """載入多國配置與 Emoji 映射"""
     configs = {}
     emoji_map = {"tw": "🇹🇼", "jp": "🇯🇵", "kr": "🇰🇷", "sg": "🇸🇬", "vn": "🇻🇳", "th": "🇹🇭", "my": "🇲🇾", "ph": "🇵🇭", "id": "🇮🇩", "in": "🇮🇳", "ae": "🇦🇪", "il": "🇮🇱", "sa": "🇸🇦", "de": "🇩🇪", "at": "🇦🇹", "ch": "🇨🇭", "cz": "🇨🇿", "pl": "🇵🇱", "tr": "🇹🇷", "gb": "🇬🇧", "fr": "🇫🇷", "nl": "🇳🇱", "be": "🇧🇪", "ie": "🇮🇪", "dk": "🇩🇰", "no": "🇳🇴", "se": "🇸🇪", "fi": "🇫🇮", "is": "🇮🇸", "it": "🇮🇹", "es": "🇪🇸", "pt": "🇵🇹", "gr": "🇬🇷", "us": "🇺🇸", "ca": "🇨🇦", "br": "🇧🇷", "mx": "🇲🇽", "au": "🇦🇺", "nz": "🇳🇿", "za": "🇿🇦"}
     for f in glob.glob("configs/*.json"):
@@ -78,47 +84,74 @@ def load_all_configs() -> Dict:
             d = json.load(j); d['emoji'] = emoji_map.get(iso, "🌐"); configs[iso] = d
     return configs
 
-# --- III. 結構化診斷與解析引擎 ---
+# --- III. 地址特徵辨識與結構化診斷 ---
+
+def is_address_feature(line: str, params: Dict) -> bool:
+    """
+    不依賴『地址』字眼，純靠文字特徵判定。
+    邏輯：道路關鍵字 OR 郵遞區號規律 OR 符號與數字高密度。
+    """
+    # 特徵 1: 各國定義的道路或地理關鍵字 (如 路, 街, Str., Ave)
+    addr_re = re.compile(params.get('address_regex', r'(Tel:)|(Fax:)'), re.I)
+    if addr_re.search(line): return True
+    
+    # 特徵 2: 郵遞區號規律 (5位數字或格式如 NY 10001)
+    if re.search(r'\b\d{5}\b', line) or re.search(r'\b\d{3}-\d{4}\b', line): return True
+    
+    # 特徵 3: 數字與符號密度 (地址通常包含門牌與區隔符)
+    digit_ratio = sum(c.isdigit() for c in line) / (len(line) + 1)
+    symbol_density = sum(c in ",-/#." for c in line)
+    if digit_ratio > 0.3 and symbol_density >= 2: return True
+    
+    return False
 
 def classify_diagnose(lines: List[str], params: Dict) -> List[Dict]:
+    """語義標記分類器：SHOP, ADDRESS, HEADER, ITEM, TOTAL, TAX, PAYMENT"""
     diagnostics = []
     d_sep, t_sep = params.get('decimal_sep', '.'), params.get('thousand_sep', ',')
-    addr_re = re.compile(params.get('address_regex', r'(Tel:)|(Fax:)'), re.I)
     pay_re = re.compile(r'(VISA|MASTER|CASH|現金|卡號|CHANGE|TENDERED)', re.I)
     tax_re = re.compile(r'(TAX|VAT|GST|MWST|稅|税)', re.I)
     total_re = re.compile(r'(' + '|'.join(params.get('keywords', ['TOTAL', 'SUM'])) + r')', re.I)
+    
     for i, line in enumerate(lines):
         line = line.strip(); label = "ITEM"
         prices = re.findall(r'(-?\d+[' + re.escape(t_sep + d_sep) + r']\d{2})', line)
-        if addr_re.search(line): label = "ADDRESS"
+        
+        if is_address_feature(line, params): label = "ADDRESS"
         elif any(h.upper() in line.upper() for h in params.get('header_skips', [])): label = "HEADER"
         elif pay_re.search(line): label = "PAYMENT"
         elif tax_re.search(line): label = "TAX"
         elif total_re.search(line): label = "TOTAL"
         elif i == 0: label = "SHOP"
+        
         diagnostics.append({"row": i, "content": line, "label": label, "has_price": "Yes" if prices else "No"})
     return diagnostics
 
 def extract_structured_data(text: str, params: Dict, target_year: int) -> Tuple[Dict, List]:
+    """結構化數據提取引擎"""
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     if not lines: return {"shop": "未知", "amount": 0.0, "items": "無", "date": datetime.now().date()}, []
+    
     tags = classify_diagnose(lines, params)
     d_sep, t_sep = params.get('decimal_sep', '.'), params.get('thousand_sep', ',')
+    
     shop = next((t['content'] for t in tags if t['label'] == "SHOP"), "未知商店")
+    
+    # 金額提取：優先找 TOTAL 行，若無則找全域最大值
     amount = 0.0
     total_rows = [t for t in tags if t['label'] == "TOTAL"]
     if total_rows:
-        prices = re.findall(r'(-?\d+[' + re.escape(t_sep + d_sep) + r']\d{2})', total_rows[0]['content'])
-        if prices: amount = float(prices[-1].replace(t_sep, '').replace(d_sep, '.'))
+        p_list = re.findall(r'(-?\d+[' + re.escape(t_sep + d_sep) + r']\d{2})', total_rows[0]['content'])
+        if p_list: amount = float(p_list[-1].replace(t_sep, '').replace(d_sep, '.'))
     if amount == 0.0:
         all_p = []
         for t in tags:
             p_l = re.findall(r'(-?\d+[' + re.escape(t_sep + d_sep) + r']\d{2})', t['content'])
             for p in p_l: all_p.append(float(p.replace(t_sep, '').replace(d_sep, '.')))
         if all_p: amount = max(all_p)
-    items = [t['content'] for t in tags if t['label'] == "ITEM" and len(t['content']) > 2]
     
-    # 日期邏輯
+    items = [t['content'] for t in tags if t['label'] == "ITEM" and len(t['content']) > 2]
+    # 日期解析
     date_val = datetime(target_year, 1, 1).date()
     t_c = text.replace("/", " ").replace("-", " ").replace(".", " ")
     for line in t_c.splitlines():
@@ -130,11 +163,13 @@ def extract_structured_data(text: str, params: Dict, target_year: int) -> Tuple[
                 d, m = (int(g1), int(g2)) if order == "DMY" else (int(g2), int(g1))
                 try: date_val = datetime(y, m, d).date(); break
                 except: continue
+                
     return {"shop": shop, "amount": amount, "items": "、".join(list(dict.fromkeys(items))[:3]), "date": date_val}, tags
 
 # --- IV. 雲端同步與財務計算 ---
 
 def sync_to_sheets(df: pd.DataFrame, u_n: str, c_c: str, tid: str, fee_rate: float) -> Tuple[int, int]:
+    """支援 Upsert (M 欄位判重) 與財務四捨五入計算"""
     try:
         gc = get_gspread_client(); sh = gc.open_by_key(tid); wks = sh.get_worksheet(0)
         uids = wks.col_values(13); now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -157,6 +192,7 @@ def main():
     all_cfg = load_all_configs(); registry = load_project_registry()
 
     with st.sidebar:
+        # 1. 專案選擇 (頂部)
         st.header("🏢 專案選擇")
         if registry:
             sel_p = st.selectbox("請選擇執行專案", list(registry.keys())); tid = registry[sel_p]
@@ -167,19 +203,26 @@ def main():
         else: st.warning("⚠️ 查無專案"); tid, u_l = None, []
         
         st.markdown("---")
+        # 2. 辨識控制 (中部)
         st.header("⚙️ 辨識控制")
         t_year = st.number_input("📅 年度鎖定", value=2026); debug = st.checkbox("🔍 OCR 診斷模式")
         if st.button("清空目前列表", use_container_width=True):
             st.session_state['data'], st.session_state['diagnostics'] = [], []; st.rerun()
             
         st.markdown("---")
+        # 3. 建立、註冊與回報連結 (底部)
         st.header("🆕 建立新專案")
         st.link_button("📥 範本連結", "https://docs.google.com/spreadsheets/d/15kD4ZMYEZvN3unbIhkH8b69KAVpiiKP-TA4q3pYJ86k/edit?usp=sharing", use_container_width=True)
-        with st.expander("註冊新專案"):
-            n_p, i_p = st.text_input("名稱"), st.text_input("ID")
+        with st.expander("註冊新專案至系統"):
+            n_p, i_p = st.text_input("專案名稱"), st.text_input("試算表 ID")
             if st.button("確認註冊") and n_p and i_p:
                 if add_project_to_registry(n_p, i_p): st.success("註冊成功"); st.rerun()
+        
+        st.markdown("---")
+        st.header("🆘 客服支援")
+        st.link_button("💬 小幫手問題回報中心", "https://line.me/ti/g/twX_HfMGBd", use_container_width=True)
 
+    # --- Main UI 4 欄排版 ---
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         sel_u = st.selectbox("報帳人員", u_l + ["其他"]) if u_l else st.text_input("人員姓名")
@@ -229,7 +272,7 @@ def main():
 
     if debug and st.session_state['diagnostics']:
         for r in st.session_state['diagnostics']:
-            with st.expander(f"🛠️ 診斷報告: {r['file']}"): st.table(r['report'])
+            with st.expander(f"🛠️ 語義分析診斷: {r['file']}"): st.table(r['report'])
 
     if st.session_state['data']:
         edf = st.data_editor(pd.DataFrame(st.session_state['data']), use_container_width=True)
