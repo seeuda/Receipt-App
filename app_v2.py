@@ -570,13 +570,32 @@ def main():
         sel_u = st.selectbox("報帳人員", u_l + ["其他"]) if u_l else st.text_input("人員姓名")
         final_u = st.text_input("確認姓名") if sel_u == "其他" else sel_u
     with c2:
+        # 建立區域-國家對應表
         reg_map = {}
         for iso, cfg in all_cfg.items():
             rk = cfg.get('sub_region', '其他')
             if rk not in reg_map:
                 reg_map[rk] = []
             reg_map[rk].append((f"{cfg['emoji']} {cfg['country']}", cfg))
-        sel_reg = st.selectbox("🌍 區域範圍", sorted(reg_map.keys()))
+        
+        # 區域排序：自訂優先級（按使用頻率）
+        region_order = [
+            "亞洲 [東亞/東南亞]",
+            "歐洲 [西歐]",
+            "歐洲 [中歐]",
+            "歐洲 [南歐]",
+            "歐洲 [北歐]",
+            "亞洲 [西南亞]",
+            "美洲",
+            "其他區域"
+        ]
+        sorted_regions = [r for r in region_order if r in reg_map]
+        
+        # 國家排序：Priority (低到高) + 字母順序
+        for region in sorted_regions:
+            reg_map[region].sort(key=lambda x: (x[1].get('priority', 99), x[0]))
+        
+        sel_reg = st.selectbox("🌍 區域範圍", sorted_regions)
         sel_c_name = st.selectbox("📍 記帳國家", [c[0] for c in reg_map[sel_reg]])
         p = next(c[1] for c in reg_map[sel_reg] if c[0] == sel_c_name)
     with c3:
