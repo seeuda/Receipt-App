@@ -580,13 +580,13 @@ def main():
         sel_c_name = st.selectbox("📍 記帳國家", [c[0] for c in reg_map[sel_reg]])
         p = next(c[1] for c in reg_map[sel_reg] if c[0] == sel_c_name)
     with c3:
-        # 初始匯率（使用當前日期）
-        if 'current_rate' not in st.session_state:
-            st.session_state['current_rate'] = get_rate_by_date(p['currency_code'], datetime.now().date())
+        # 匯率輸入（辨識後會根據收據日期自動更新）
+        # 使用預設值避免頁面載入時自動查詢 API（導致無法休眠）
+        default_rate = 1.0 if p['currency_code'] == "TWD" else 35.0
         
         cur_rate = st.number_input(
             f"匯率 ({p['currency_code']})", 
-            value=float(st.session_state['current_rate']), 
+            value=float(st.session_state.get('current_rate', default_rate)), 
             step=0.01,
             help="辨識後會根據收據日期自動更新"
         )
