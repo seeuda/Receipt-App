@@ -82,6 +82,9 @@ def load_all_configs() -> Dict:
     configs = {}
     emoji_map = {"tw": "🇹🇼", "jp": "🇯🇵", "kr": "🇰🇷", "sg": "🇸🇬", "vn": "🇻🇳", "th": "🇹🇭", "my": "🇲🇾", "ph": "🇵🇭", "id": "🇮🇩", "in": "🇮🇳", "ae": "🇦🇪", "il": "🇮🇱", "sa": "🇸🇦", "de": "🇩🇪", "at": "🇦🇹", "ch": "🇨🇭", "cz": "🇨🇿", "pl": "🇵🇱", "tr": "🇹🇷", "gb": "🇬🇧", "fr": "🇫🇷", "nl": "🇳🇱", "be": "🇧🇪", "ie": "🇮🇪", "dk": "🇩🇰", "no": "🇳🇴", "se": "🇸🇪", "fi": "🇫🇮", "is": "🇮🇸", "it": "🇮🇹", "es": "🇪🇸", "pt": "🇵🇹", "gr": "🇬🇷", "us": "🇺🇸", "ca": "🇨🇦", "br": "🇧🇷", "mx": "🇲🇽", "au": "🇦🇺", "nz": "🇳🇿", "za": "🇿🇦"}
     for f in glob.glob("configs/*.json"):
+        # 排除 region_order.json（非國家參數檔）
+        if os.path.basename(f) == "region_order.json":
+            continue
         iso = os.path.basename(f).split('_')[0].lower()
         with open(f, 'r', encoding='utf-8') as j:
             d = json.load(j); d['emoji'] = emoji_map.get(iso, "🌐"); configs[iso] = d
