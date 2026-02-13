@@ -17,37 +17,65 @@ REGISTRY_ID = "1rPQlGHtvx6M630vnZ_FANMRyR_EnMrzje85V3mZ2H0M"
 TEMPLATE_URL = "https://docs.google.com/spreadsheets/d/15kD4ZMYEZvN3unbIhkH8b69KAVpiiKP-TA4q3pYJ86k/edit"
 
 def get_rate_by_date(currency_code, target_date):
-    """根據日期查詢匯率（週末自動往前抓週五）"""
-    if currency_code == "TWD":
+    if currency_code in ("TWD", "NTD"):
         return 1.0
-    
+
     try:
-        # 將字串日期轉為 datetime
         if isinstance(target_date, str):
             target_date = datetime.strptime(target_date, "%Y-%m-%d").date()
-        
-        check_date = target_date
-        max_attempts = 7  # 最多往前推 7 天
-        
-        for _ in range(max_attempts):
-            # 如果是週末（5=六, 6=日），往前推
-            while check_date.weekday() >= 5:
-                check_date -= timedelta(days=1)
-            
-            # 嘗試獲取該日期的匯率
-            ticker = yf.Ticker(f"{currency_code}TWD=X")
-            hist = ticker.history(start=check_date, end=check_date + timedelta(days=1))
-            
-            if not hist.empty:
-                return float(hist['Close'].iloc[0])
-            
-            # 如果該日無資料，繼續往前推一天
-            check_date -= timedelta(days=1)
-        
-        # 如果都找不到，使用最新匯率
-        return float(ticker.fast_info.get('lastPrice', 35.0))
+
+        def fetch_pair(pair, d, max_days=7):
+            ticker = yf.Ticker(pair)
+            for i in range(max_days + 1):
+                day = d - timedelta(days=i)
+                start = day.strftime("%Y-%m-%d")
+                end = (day + timedelta(days=1)).strftime("%Y-%m-%d")
+                try:
+                    hist = ticker.history(start=start, end=end)
+                    if hist is not None and not hist.empty:
+                        v = float(hist["Close"].iloc[-1])
+                        if v > 0:
+                            return v
+                except:
+                    pass
+
+            try:
+                fi = getattr(ticker, "fast_info", None)
+                if fi and fi.get("lastPrice"):
+                    v = float(fi["lastPrice"])
+                    if v > 0:
+                        return v
+            except:
+                pass
+
+            return None
+
+        currency_code = str(currency_code).strip().upper()
+
+        # 1) 先試直連
+        direct = fetch_pair(f"{currency_code}TWD=X", target_date)
+        if direct is not None:
+            return direct
+
+        # 2) 走 USD 交叉
+        usd_to_twd = fetch_pair("USDTWD=X", target_date)
+
+        # 2a) 1 CCY = ? USD
+        ccy_to_usd = fetch_pair(f"{currency_code}USD=X", target_date)
+
+        # 2b) 若只有 USDCCY，取倒數
+        if ccy_to_usd is None:
+            usd_to_ccy = fetch_pair(f"USD{currency_code}=X", target_date)
+            if usd_to_ccy and usd_to_ccy > 0:
+                ccy_to_usd = 1.0 / usd_to_ccy
+
+        if usd_to_twd is not None and ccy_to_usd is not None:
+            return ccy_to_usd * usd_to_twd
+
+        return 37.0
+
     except:
-        return 35.0  # 預設值
+        return 37.0
 
 def get_gc():
     try:
