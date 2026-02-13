@@ -313,34 +313,72 @@ with tab_main:
                 try:
                     gc = get_gc()
                     wks = gc.open_by_key(tid).get_worksheet(0)
-                    uids = wks.col_values(13)
+        
+                    # === 建立 雲端 UID -> 列號 對照表 ===
+                    uid_col = wks.col_values(13)  # M 欄
+                    uid_to_row = {}
+                    for idx, uid in enumerate(uid_col, start=1):
+                        uid = str(uid).strip()
+                        if uid:
+                            uid_to_row[uid] = idx
+
                     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    rows = []
-                    
+
+                    updates = []         # 要覆蓋的
+                    rows_to_append = []  # 要新增的
+
+                    # === 逐筆檢查 ===
                     for _, r in edited_df.iterrows():
-                        if r['UID'] not in uids:
-                            t_base = int(r['台幣金額'])
-                            t_total = round(t_base * (1 + fee_rate), 0)
-                            rows.append([
-                                now, f_user, r['商店名稱'], r['品項摘要'], r['日期'],
-                                r['外幣金額'], r['幣別'], r['匯率'],
-                                t_base, t_total - t_base, t_total, r['備註'], r['UID']
-                            ])
-                    
-                    if rows:
+                        uid = str(r['UID']).strip()
+
+                        t_base = int(r['台幣金額'])
+                        t_total = round(t_base * (1 + fee_rate), 0)
+
+                        row_values_A_to_L = [
+                            now, f_user, r['商店名稱'], r['品項摘要'], r['日期'],
+                            r['外幣金額'], r['幣別'], r['匯率'],
+                            t_base, t_total - t_base, t_total, r['備註']
+                        ]
+
+                        if uid in uid_to_row:
+                            # 已存在 → 覆蓋 A~L（保留 UID）
+                            rownum = uid_to_row[uid]
+                            updates.append({
+                                "range": f"A{rownum}:L{rownum}",
+                                "values": [row_values_A_to_L]
+                            })
+                        else:
+                            # 不存在 → 新增
+                            rows_to_append.append(row_values_A_to_L + [uid])
+
+                    # === 批次更新 ===
+                    updated_count = 0
+                    if updates:
+                        wks.batch_update(updates, value_input_option="USER_ENTERED")
+                        updated_count = len(updates)
+
+                    # === 批次新增（強制插入） ===
+                    appended_count = 0
+                    if rows_to_append:
                         wks.append_rows(
-                            rows,
-                            value_input_option='USER_ENTERED',
-                            insert_data_option='INSERT_ROWS',
-                            table_range='A2:M2'
+                            rows_to_append,
+                            value_input_option="USER_ENTERED",
+                            insert_data_option="INSERT_ROWS",
+                            table_range="A2:M2"
                         )
-                        st.success(f"✅ 同步完成！新增 {len(rows)} 筆。")
+                        appended_count = len(rows_to_append)
+
+                    if updated_count or appended_count:
+                        st.success(f"✅ 同步完成！更新 {updated_count} 筆、新增 {appended_count} 筆。")
                         st.session_state['data'] = []
                         st.session_state['uploaded_images'] = {}
+                        st.balloons()
                     else:
-                        st.warning("無新資料。")
+                        st.warning("⚠️ 無資料可同步。")
+
                 except Exception as e:
                     st.error(f"同步錯誤: {e}")
+
 
 with tab_reg:
     st.header("🛠️ 專案註冊")
