@@ -9,7 +9,7 @@ import google.generativeai as genai
 from PIL import Image
 
 # ==========================================
-# I. 基礎設施與配置
+# I. 基礎設施與配置自動化
 # ==========================================
 
 REGISTRY_ID = "1rPQlGHtvx6M630vnZ_FANMRyR_EnMrzje85V3mZ2H0M"
@@ -47,11 +47,11 @@ def load_bootstrap_data():
 # ==========================================
 
 def test_api_connection(api_key):
-    """【新功能】API 預檢 (Ping)：確認金鑰是否具備 Gemini 權限"""
+    """【實施 API 預檢】確認金鑰是否具備模型存取權限"""
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('models/gemini-1.5-flash')
-        # 極簡測試：問一個單詞
+        # 修正：移除 models/ 前綴以避免 404 衝突
+        model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content("ping")
         return True, "連線成功"
     except Exception as e:
@@ -61,7 +61,8 @@ def run_vlm_scan(api_key, image_bytes, year, country_info):
     """VLM 辨識：結合座標錨定並捕捉錯誤"""
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('models/gemini-1.5-flash')
+        # 修正：移除 models/ 前綴
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
         hint = country_info.get("decimal_hint", ".")
         prompt = f"""
@@ -70,34 +71,39 @@ def run_vlm_scan(api_key, image_bytes, year, country_info):
         """
         img = Image.open(io.BytesIO(image_bytes))
         response = model.generate_content([prompt, img])
+        
         raw = response.text.replace('```json', '').replace('```', '').strip()
         return json.loads(raw)
     except Exception as e:
-        # 【實施錯誤持久化】將報錯代碼存入 session_state
-        st.session_state['vlm_error'] = str(e)
+        # 【實施錯誤持久化】記錄完整錯誤供使用者分析
+        st.session_state['vlm_error'] = f"{type(e).__name__}: {str(e)}"
         return None
 
 # ==========================================
 # III. UI 佈局 (MVC 架構)
 # ==========================================
 
-st.set_page_config(page_title="考察支出登錄系統 v4.7.2", layout="wide")
+st.set_page_config(page_title="考察支出登錄系統 v4.7.3", layout="wide")
 
-# 初始化 Session 變數
+# 初始化 Session 狀態
 if 'data' not in st.session_state: st.session_state['data'] = []
 if 'vlm_error' not in st.session_state: st.session_state['vlm_error'] = None
 
-admin_pwd, p_dict, c_master = load_bootstrap_data()
+# 加載外部參數與註冊資訊
+admin_pwd, project_dict, c_master = load_bootstrap_data()
 
 with st.sidebar:
     st.title("🛡️ 系統指揮中心")
-    sel_p_name = st.selectbox("🎯 選擇執行專案", list(p_dict.keys()) + ["+ 註冊新專案"])
+    
+    # 專案選擇
+    sel_p_name = st.selectbox("🎯 選擇執行專案", list(project_dict.keys()) + ["+ 註冊新專案"])
     
     st.divider()
+    
+    # 權限分流與 API 預檢
     st.subheader("🔑 API 權限驗證")
     auth_mode = st.radio("模式", ["開發者配額 (需密碼)", "自備 API KEY"])
     active_key = None
-    
     if auth_mode == "開發者配額 (需密碼)":
         if st.text_input("輸入 A1 授權碼", type="password") == admin_pwd:
             active_key = st.secrets["gemini_api_key"]
@@ -106,80 +112,98 @@ with st.sidebar:
         u_key = st.text_input("輸入 Gemini API KEY")
         if u_key: active_key = u_key
 
-    # 【新功能】API 預檢按鈕
-    if active_key and st.button("⚡ 測試 API 連線 (Ping)"):
-        success, msg = test_api_connection(active_key)
-        if success: st.success("🚀 API 連線測試成功！")
-        else: st.error(f"❌ 連線失敗: {msg}")
+    # 【功能實體化：API 預檢按鈕】
+    if active_key:
+        if st.button("⚡ 測試 API 連線 (Ping)", use_container_width=True):
+            with st.spinner("測試中..."):
+                success, msg = test_api_connection(active_key)
+                if success:
+                    st.success("🚀 API 連線測試成功！")
+                    st.session_state['vlm_error'] = None
+                else:
+                    st.error(f"❌ 連線失敗: {msg}")
+                    st.session_state['vlm_error'] = msg
 
     st.divider()
     target_year = st.number_input("📅 基準年度", value=2026)
-    if st.button("🗑️ 清空辨識紀錄"):
-        st.session_state['data'] = []; st.session_state['vlm_error'] = None; st.rerun()
+    if st.button("🗑️ 清空辨識紀錄", use_container_width=True):
+        st.session_state['data'] = []
+        st.session_state['vlm_error'] = None
+        st.rerun()
 
-# --- 主介面 ---
-tab_main, tab_reg = st.tabs(["🚀 辨識同步任務", "🆕 專案註冊"])
+# --- 主畫面頁籤 ---
+tab_main, tab_reg = st.tabs(["🚀 辨識同步任務", "🆕 專案快速註冊"])
 
 with tab_main:
-    # 【實施錯誤持久化】錯誤顯示區：除非手動清空，否則釘在頁面上方
+    # 【功能實體化：錯誤持久化顯示】
     if st.session_state['vlm_error']:
-        st.error(f"❌ 上次辨識失敗報告: {st.session_state['vlm_error']}")
-        st.info("💡 建議：點擊側邊欄『測試 API 連線』檢查權限狀態。")
+        with st.container():
+            st.error("🚩 系統異常報告")
+            st.code(st.session_state['vlm_error'], language="bash")
+            st.info("💡 指揮官提示：請檢查側邊欄的 API 連線狀態，或確認是否已達到每分鐘流量限制。")
 
     if sel_p_name == "+ 註冊新專案":
-        st.info("請前往『專案註冊』頁籤執行。")
-    elif p_dict:
-        tid = p_dict[sel_p_name]
+        st.info("請前往『專案快速註冊』頁籤執行。")
+    elif project_dict:
+        tid = project_dict[sel_p_name]
         try:
             gc = get_gc()
-            names = gc.open_by_key(tid).worksheet("人員名單").col_values(1)[1:]
+            sh = gc.open_by_key(tid)
+            names = [n for n in sh.worksheet("人員名單").col_values(1)[1:] if n.strip()]
         except: names = []
 
-        # 頂部選擇區：由 JSON 驅動的分層連動
+        # 頂部導航區：完全由 JSON 驅動的分層選單
         c1, c2, c3, c4 = st.columns(4)
         with c1:
-            u_sel = st.selectbox("報帳人", names + ["其他"])
-            f_user = st.text_input("姓名確認", value="") if u_sel == "其他" else u_sel
+            u_sel = st.selectbox("登錄者姓名", names + ["其他人員"])
+            f_user = st.text_input("確認姓名", value="") if u_sel == "其他人員" else u_sel
+        
         with c2:
-            s_reg = st.selectbox("🌍 選擇區域", c_master["region_order"])
-            # 根據區域過濾國家並依照 Priority 排序
-            f_cs = {k: v for k, v in c_master["countries"].items() if v["region"] == s_reg}
-            sorted_keys = sorted(f_cs.keys(), key=lambda x: (f_cs[x]["priority"], f_cs[x]["name"]))
-            sel_k = st.selectbox("📍 選擇國家", sorted_keys, format_func=lambda x: f_cs[x]["name"])
-            target_country = f_cs[sel_k]
+            s_region = st.selectbox("🌍 選擇區域", c_master["region_order"])
+            f_countries = {k: v for k, v in c_master["countries"].items() if v["region"] == s_region}
+            s_country_keys = sorted(f_countries.keys(), key=lambda x: (f_countries[x]["priority"], f_countries[x]["name"]))
+            
+            sel_country_key = st.selectbox(
+                "📍 選擇國家", s_country_keys, 
+                format_func=lambda x: f_countries[x]["name"]
+            )
+            target_country = f_countries[sel_country_key]
+
         with c3:
-            fee_rate = st.number_input("手續費 (%)", value=1.5) / 100
+            fee_rate = st.number_input("手續費率 (%)", value=1.5) / 100
         with c4:
-            st.link_button("開啟 Google Sheets", f"https://docs.google.com/spreadsheets/d/{tid}/edit")
+            st.link_button("📂 開啟專案 Sheet", f"https://docs.google.com/spreadsheets/d/{tid}/edit", use_container_width=True)
 
         st.divider()
-        files = st.file_uploader("上傳收據照片 (可多選)", accept_multiple_files=True)
+        files = st.file_uploader("批次上傳單據照片", accept_multiple_files=True, type=['jpg','png','jpeg'])
 
-        if st.button("⚡ 啟動 AI 自動偵察", type="primary"):
-            if not active_key: st.error("❌ 尚未取得 API 權限。")
+        if st.button("⚡ 啟動 AI 自動偵察", type="primary", use_container_width=True):
+            if not active_key: 
+                st.error("❌ 尚未取得 API 授權。")
             elif files:
-                st.session_state['vlm_error'] = None # 開始新辨識前清除舊報錯
-                with st.spinner(f"正在針對 {target_country['name']} 單據進行 VLM 分析..."):
-                    new_batch = []
+                st.session_state['vlm_error'] = None
+                with st.spinner(f"正在對 {target_country['name']} 收據進行 VLM 分析..."):
+                    batch = []
                     for f in files:
                         res = run_vlm_scan(active_key, f.read(), target_year, target_country)
                         if res:
                             uid = hashlib.md5(f.getvalue() + f_user.encode()).hexdigest()[:12]
-                            new_batch.append({
+                            batch.append({
                                 "UID": uid, "商店名稱": res['shop'], "日期": res['date'], 
                                 "外幣金額": res['amount'], "幣別": res['currency'], 
                                 "品項摘要": res['items'], "備註": ""
                             })
-                    st.session_state['data'] = new_batch
-                    st.rerun()
+                    if batch:
+                        st.session_state['data'] = batch
+                        st.rerun()
 
-    # --- 預覽與同步 ---
+    # --- 核對表格與同步 ---
     if st.session_state['data']:
         st.subheader("📝 辨識結果核對")
         edf = st.data_editor(pd.DataFrame(st.session_state['data']), use_container_width=True, num_rows="dynamic")
         
-        if st.button("📤 同步至雲端"):
-            with st.spinner("同步至 A-M 欄位中..."):
+        if st.button("📤 同步至雲端", type="secondary", use_container_width=True):
+            with st.spinner("同步 A-M 欄位中..."):
                 try:
                     gc = get_gc()
                     wks = gc.open_by_key(tid).get_worksheet(0)
@@ -194,15 +218,18 @@ with tab_main:
                             rows.append([now, f_user, r['商店名稱'], r['品項摘要'], r['日期'], r['外幣金額'], r['幣別'], round(rate, 3), t_base, t_total - t_base, t_total, r['備註'], r['UID']])
                     if rows:
                         wks.append_rows(rows, value_input_option='USER_ENTERED')
-                        st.success(f"🎉 成功同步 {len(rows)} 筆。")
+                        st.success(f"✅ 同步完成！新增 {len(rows)} 筆。")
                         st.session_state['data'] = []
                     else: st.warning("無新資料。")
                 except Exception as e: st.error(f"同步錯誤: {e}")
 
 with tab_reg:
-    st.header("🛠️ 專案註冊介面")
+    st.header("🛠️ 專案註冊")
+    st.markdown(f"1. [點此複製範本]({TEMPLATE_URL})\n2. 複製 ID 提交。")
     rn, rid = st.text_input("專案名稱"), st.text_input("試算表 ID")
-    if st.button("✅ 提交"):
+    if st.button("✅ 提交註冊", use_container_width=True):
         if rn and rid:
-            get_gc().open_by_key(REGISTRY_ID).get_worksheet(0).append_row([datetime.now().strftime("%Y/%m/%d %H:%M"), rn, rid, "TRUE"])
-            st.success("註冊完成！")
+            try:
+                get_gc().open_by_key(REGISTRY_ID).get_worksheet(0).append_row([datetime.now().strftime("%Y/%m/%d %H:%M"), rn, rid, "TRUE"])
+                st.success("註冊成功！")
+            except Exception as e: st.error(f"失敗: {e}")
