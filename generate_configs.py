@@ -30,6 +30,18 @@ def generate_configs(master_data: Dict[str, Dict[str, Any]], output_dir: str = "
 
     logging.info(f"\n🎉 全數完成！共計產出 {len(master_data)} 個在地化參數檔。")
 
+# 區域排序配置（按使用頻率）
+REGION_ORDER = [
+    "亞洲 [東亞/東南亞]",
+    "歐洲 [西歐]",
+    "歐洲 [中歐]",
+    "歐洲 [南歐]",
+    "歐洲 [北歐]",
+    "亞洲 [西南亞]",
+    "美洲",
+    "其他區域"
+]
+
 # --- 40 國在地化母字典 (8 大分組優化版) ---
 # 參數說明：
 # - decimal_sep / thousand_sep: 小數點與千分位符號，解決歐洲與美台差異
@@ -146,3 +158,13 @@ MASTER_REGISTRY = {
 
 if __name__ == "__main__":
     generate_configs(MASTER_REGISTRY)
+    
+    # 額外產出區域排序配置檔
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    region_order_path = os.path.join(base_path, "configs", "region_order.json")
+    try:
+        with open(region_order_path, "w", encoding="utf-8") as f:
+            json.dump({"region_order": REGION_ORDER}, f, ensure_ascii=False, indent=2)
+        logging.info(f"✅ 產出區域排序配置: region_order.json")
+    except Exception as e:
+        logging.error(f"❌ 產出區域排序失敗: {e}")

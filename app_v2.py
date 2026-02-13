@@ -87,6 +87,25 @@ def load_all_configs() -> Dict:
             d = json.load(j); d['emoji'] = emoji_map.get(iso, "🌐"); configs[iso] = d
     return configs
 
+def load_region_order() -> List[str]:
+    """讀取區域排序配置，若檔案不存在則使用預設值"""
+    try:
+        with open("configs/region_order.json", 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return data.get("region_order", [])
+    except FileNotFoundError:
+        # 預設排序（向下相容）
+        return [
+            "亞洲 [東亞/東南亞]",
+            "歐洲 [西歐]",
+            "歐洲 [中歐]",
+            "歐洲 [南歐]",
+            "歐洲 [北歐]",
+            "亞洲 [西南亞]",
+            "美洲",
+            "其他區域"
+        ]
+
 # ═══════════════════════════════════════════════════════════════════════════
 # III. 影像前處理增強
 # ═══════════════════════════════════════════════════════════════════════════
@@ -578,17 +597,8 @@ def main():
                 reg_map[rk] = []
             reg_map[rk].append((f"{cfg['emoji']} {cfg['country']}", cfg))
         
-        # 區域排序：自訂優先級（按使用頻率）
-        region_order = [
-            "亞洲 [東亞/東南亞]",
-            "歐洲 [西歐]",
-            "歐洲 [中歐]",
-            "歐洲 [南歐]",
-            "歐洲 [北歐]",
-            "亞洲 [西南亞]",
-            "美洲",
-            "其他區域"
-        ]
+        # 讀取區域排序配置
+        region_order = load_region_order()
         sorted_regions = [r for r in region_order if r in reg_map]
         
         # 國家排序：Priority (低到高) + 字母順序
