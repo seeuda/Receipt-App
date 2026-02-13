@@ -1,7 +1,7 @@
 {
   "country": "西班牙",
   "sub_region": "歐洲 [南歐]",
-  "priority": 10,
+  "priority": 1,
   "currency_code": "EUR",
   "decimal_sep": ",",
   "thousand_sep": ".",

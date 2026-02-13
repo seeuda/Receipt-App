@@ -33,9 +33,9 @@ def generate_configs(master_data: Dict[str, Dict[str, Any]], output_dir: str = "
 # 區域排序配置（按使用頻率）
 REGION_ORDER = [
     "亞洲 [東亞/東南亞]",
-    "歐洲 [西歐]",
     "歐洲 [中歐]",
     "歐洲 [南歐]",
+    "歐洲 [西歐]",
     "歐洲 [北歐]",
     "亞洲 [西南亞]",
     "美洲",
@@ -53,7 +53,7 @@ REGION_ORDER = [
 MASTER_REGISTRY = {
     # === 區域 1: 亞洲 [東亞/東南亞] ===
     "tw": {
-        "country": "台灣", "sub_region": "亞洲 [東亞/東南亞]", "priority": 0, "currency_code": "TWD",
+        "country": "台灣", "sub_region": "亞洲 [東亞/東南亞]", "priority": 10, "currency_code": "TWD",
         "decimal_sep": ".", "thousand_sep": ",", "date_order": "YMD",
         "address_regex": r"(路|街|巷|弄|號|樓|市|區)", "tax_symbols": r"(\*)",
         "header_skips": ["統一發票", "電子發票", "收銀機發票", "交易明細"],
@@ -112,35 +112,35 @@ MASTER_REGISTRY = {
 
     # === 區域 3: 歐洲 [中歐] ===
     "de": {
-        "country": "德國", "sub_region": "歐洲 [中歐]", "priority": 1, "currency_code": "EUR",
+        "country": "德國", "sub_region": "歐洲 [中歐]", "priority": 10, "currency_code": "EUR",
         "decimal_sep": ",", "thousand_sep": ".", "date_order": "DMY",
         "address_regex": r"(\d{5}\s+[A-Z])|(Str\.)|(Strasse)|(Ring)|(Platz)|(Gasse)|(Tel:)|(St\.-Nr)",
         "tax_symbols": r"([A-Z]\b)", "header_skips": ["RECHNUNG", "QUITTUNG", "BELEG", "KASSENBELEG"],
         "keywords": ["GESAMT", "SUMME", "TOTAL"], "stop_keywords": ["VIELEN DANK", "STEUER"], "month_map": {"Jan":"01"}
     },
-    "at": {"country": "奧地利", "sub_region": "歐洲 [中歐]", "priority": 10, "currency_code": "EUR", "decimal_sep": ",", "thousand_sep": ".", "date_order": "DMY", "address_regex": r"(\d{4}\s+[A-Z])|(Gasse)|(Str\.)", "tax_symbols": r"([A-Z]\b)", "header_skips": ["RECHNUNG"], "keywords": ["GESAMT"], "stop_keywords": ["DANKE"], "month_map": {"Jan":"01"}},
+    "at": {"country": "奧地利", "sub_region": "歐洲 [中歐]", "priority": 1, "currency_code": "EUR", "decimal_sep": ",", "thousand_sep": ".", "date_order": "DMY", "address_regex": r"(\d{4}\s+[A-Z])|(Gasse)|(Str\.)", "tax_symbols": r"([A-Z]\b)", "header_skips": ["RECHNUNG"], "keywords": ["GESAMT"], "stop_keywords": ["DANKE"], "month_map": {"Jan":"01"}},
     "ch": {"country": "瑞士", "sub_region": "歐洲 [中歐]", "priority": 10, "currency_code": "CHF", "decimal_sep": ".", "thousand_sep": "'", "date_order": "DMY", "address_regex": r"(\d{4}\s+[A-Z])|(Strasse)|(Rue)", "tax_symbols": r"(\*)", "header_skips": ["FACTURE"], "keywords": ["TOTAL"], "stop_keywords": ["MERCI"], "month_map": {"Jan":"01"}},
-    "cz": {"country": "捷克", "sub_region": "歐洲 [中歐]", "priority": 10, "currency_code": "CZK", "decimal_sep": ",", "thousand_sep": " ", "date_order": "DMY", "address_regex": r"(\d{3}\s\d{2})|(Ulice)|(Náměstí)", "keywords": ["CELKEM"], "stop_keywords": ["DĚK"], "month_map": {"Led":"01"}},
+    "cz": {"country": "捷克", "sub_region": "歐洲 [中歐]", "priority": 1, "currency_code": "CZK", "decimal_sep": ",", "thousand_sep": " ", "date_order": "DMY", "address_regex": r"(\d{3}\s\d{2})|(Ulice)|(Náměstí)", "keywords": ["CELKEM"], "stop_keywords": ["DĚK"], "month_map": {"Led":"01"}},
     "pl": {"country": "波蘭", "sub_region": "歐洲 [中歐]", "priority": 10, "currency_code": "PLN", "decimal_sep": ",", "thousand_sep": " ", "date_order": "DMY", "address_regex": r"(\d{2}-\d{3})|(ul\.)", "keywords": ["SUMA"], "stop_keywords": ["DZIEK"], "month_map": {"Sty":"01"}},
     "tr": {"country": "土耳其", "sub_region": "歐洲 [中歐]", "priority": 10, "currency_code": "TRY", "decimal_sep": ",", "thousand_sep": ".", "date_order": "DMY", "address_regex": r"(Caddesi)|(Sokak)|(Mah\.)", "keywords": ["TOPLAM"], "stop_keywords": ["TEŞE"], "month_map": {"Oca":"01"}},
 
     # === 區域 4: 歐洲 [西歐] ===
-    "gb": {"country": "英國", "sub_region": "歐洲 [西歐]", "priority": 1, "currency_code": "GBP", "decimal_sep": ".", "thousand_sep": ",", "date_order": "DMY", "address_regex": r"([A-Z]{1,2}\d[A-Z\d]?\s\d[A-Z]{2})|(Street)|(Rd\.)", "header_skips": ["INVOICE"], "keywords": ["TOTAL"], "stop_keywords": ["THANK"], "month_map": {"Jan":"01"}},
+    "gb": {"country": "英國", "sub_region": "歐洲 [西歐]", "priority": 5, "currency_code": "GBP", "decimal_sep": ".", "thousand_sep": ",", "date_order": "DMY", "address_regex": r"([A-Z]{1,2}\d[A-Z\d]?\s\d[A-Z]{2})|(Street)|(Rd\.)", "header_skips": ["INVOICE"], "keywords": ["TOTAL"], "stop_keywords": ["THANK"], "month_map": {"Jan":"01"}},
     "fr": {"country": "法國", "sub_region": "歐洲 [西歐]", "priority": 5, "currency_code": "EUR", "decimal_sep": ",", "thousand_sep": " ", "date_order": "DMY", "address_regex": r"(\d{5})|(Rue)|(Ave)|(Boulevard)", "tax_symbols": r"(\*)", "header_skips": ["FACTURE"], "keywords": ["TOTAL"], "stop_keywords": ["MERCI"], "month_map": {"Jan":"01"}},
     "nl": {"country": "荷蘭", "sub_region": "歐洲 [西歐]", "priority": 10, "currency_code": "EUR", "decimal_sep": ",", "thousand_sep": ".", "date_order": "DMY", "address_regex": r"(\d{4}\s?[A-Z]{2})|(Straat)", "keywords": ["TOTAAL"], "stop_keywords": ["BEDANKT"], "month_map": {"Jan":"01"}},
     "be": {"country": "比利時", "sub_region": "歐洲 [西歐]", "priority": 10, "currency_code": "EUR", "decimal_sep": ",", "thousand_sep": ".", "date_order": "DMY", "address_regex": r"(Rue)|(Straat)", "keywords": ["TOTAL"], "stop_keywords": ["MERCI"], "month_map": {"Jan":"01"}},
     "ie": {"country": "愛爾蘭", "sub_region": "歐洲 [西歐]", "priority": 10, "currency_code": "EUR", "decimal_sep": ".", "thousand_sep": ",", "date_order": "DMY", "address_regex": r"([A-Z]\d{2}\s[A-Z\d]{4})|(Street)", "keywords": ["TOTAL"], "stop_keywords": ["THANK"], "month_map": {"Jan":"01"}},
 
     # === 區域 5: 歐洲 [北歐] ===
-    "dk": {"country": "丹麥", "sub_region": "歐洲 [北歐]", "priority": 5, "currency_code": "DKK", "decimal_sep": ",", "thousand_sep": ".", "date_order": "DMY", "address_regex": r"(\d{4})|(Gade)|(Vej)", "keywords": ["TOTAL"], "stop_keywords": ["KØB"], "month_map": {"Januar":"01"}},
+    "dk": {"country": "丹麥", "sub_region": "歐洲 [北歐]", "priority": 10, "currency_code": "DKK", "decimal_sep": ",", "thousand_sep": ".", "date_order": "DMY", "address_regex": r"(\d{4})|(Gade)|(Vej)", "keywords": ["TOTAL"], "stop_keywords": ["KØB"], "month_map": {"Januar":"01"}},
     "no": {"country": "挪威", "sub_region": "歐洲 [北歐]", "priority": 10, "currency_code": "NOK", "decimal_sep": ",", "thousand_sep": ".", "date_order": "DMY", "address_regex": r"(\d{4})|(Gate)|(Vei)", "keywords": ["TOTAL"], "stop_keywords": ["TAK"], "month_map": {"Jan":"01"}},
     "se": {"country": "瑞典", "sub_region": "歐洲 [北歐]", "priority": 10, "currency_code": "SEK", "decimal_sep": ",", "thousand_sep": ".", "date_order": "DMY", "address_regex": r"(\d{3}\s\d{2})|(Gata)|(Väg)", "keywords": ["TOTAL"], "stop_keywords": ["TACK"], "month_map": {"Jan":"01"}},
     "fi": {"country": "芬蘭", "sub_region": "歐洲 [北歐]", "priority": 10, "currency_code": "EUR", "decimal_sep": ",", "thousand_sep": " ", "date_order": "DMY", "address_regex": r"(\d{5})|(Katu)|(Tie)", "keywords": ["YHTEENSÄ"], "stop_keywords": ["KIITOS"], "month_map": {"Tammi":"01"}},
     "is": {"country": "冰島", "sub_region": "歐洲 [北歐]", "priority": 10, "currency_code": "ISK", "decimal_sep": ",", "thousand_sep": ".", "date_order": "DMY", "address_regex": r"(\d{3})|(Gata)|(Vegur)", "keywords": ["SAMTALS"], "stop_keywords": ["TAKK"], "month_map": {"Jan":"01"}},
 
     # === 區域 6: 歐洲 [南歐] ===
-    "it": {"country": "義大利", "sub_region": "歐洲 [南歐]", "priority": 10, "currency_code": "EUR", "decimal_sep": ",", "thousand_sep": ".", "date_order": "DMY", "address_regex": r"(\d{5})|(Via)|(Piazza)", "keywords": ["TOTALE"], "stop_keywords": ["GRAZIE"], "month_map": {"Gen":"01"}},
-    "es": {"country": "西班牙", "sub_region": "歐洲 [南歐]", "priority": 10, "currency_code": "EUR", "decimal_sep": ",", "thousand_sep": ".", "date_order": "DMY", "address_regex": r"(\d{5})|(Calle)|(Avenida)", "keywords": ["TOTAL"], "stop_keywords": ["GRACIAS"], "month_map": {"Ene":"01"}},
+    "it": {"country": "義大利", "sub_region": "歐洲 [南歐]", "priority": 5, "currency_code": "EUR", "decimal_sep": ",", "thousand_sep": ".", "date_order": "DMY", "address_regex": r"(\d{5})|(Via)|(Piazza)", "keywords": ["TOTALE"], "stop_keywords": ["GRAZIE"], "month_map": {"Gen":"01"}},
+    "es": {"country": "西班牙", "sub_region": "歐洲 [南歐]", "priority": 1, "currency_code": "EUR", "decimal_sep": ",", "thousand_sep": ".", "date_order": "DMY", "address_regex": r"(\d{5})|(Calle)|(Avenida)", "keywords": ["TOTAL"], "stop_keywords": ["GRACIAS"], "month_map": {"Ene":"01"}},
     "pt": {"country": "葡萄牙", "sub_region": "歐洲 [南歐]", "priority": 10, "currency_code": "EUR", "decimal_sep": ",", "thousand_sep": " ", "date_order": "DMY", "address_regex": r"(\d{4}-\d{3})|(Rua)", "keywords": ["TOTAL"], "stop_keywords": ["OBRIGADO"], "month_map": {"Jan":"01"}},
     "gr": {"country": "希臘", "sub_region": "歐洲 [南歐]", "priority": 10, "currency_code": "EUR", "decimal_sep": ",", "thousand_sep": ".", "date_order": "DMY", "address_regex": r"(\d{5})|(Οδός)", "keywords": ["ΣΥΝΟΛΟ"], "stop_keywords": ["ΕΥΧ"], "month_map": {"Ιαν":"01"}},
 
