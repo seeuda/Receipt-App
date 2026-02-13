@@ -1,7 +1,7 @@
 {
   "country": "台灣",
   "sub_region": "亞洲 [東亞/東南亞]",
-  "priority": 0,
+  "priority": 10,
   "currency_code": "TWD",
   "decimal_sep": ".",
   "thousand_sep": ",",

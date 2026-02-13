@@ -1,7 +1,7 @@
 {
   "country": "丹麥",
   "sub_region": "歐洲 [北歐]",
-  "priority": 5,
+  "priority": 10,
   "currency_code": "DKK",
   "decimal_sep": ",",
   "thousand_sep": ".",
