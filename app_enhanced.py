@@ -158,6 +158,8 @@ with st.sidebar:
     # 專案選擇
     sel_p_name = st.selectbox("🎯 選擇執行專案", list(project_dict.keys()) + ["+ 註冊新專案"])
     
+    target_year = st.number_input("📅 基準年度", value=2026)
+
     st.divider()
     
     # 權限分流與 API 預檢
@@ -184,7 +186,6 @@ with st.sidebar:
                     st.session_state['vlm_error'] = msg
 
     st.divider()
-    target_year = st.number_input("📅 基準年度", value=2026)
     if st.button("🗑️ 清空辨識紀錄", use_container_width=True):
         st.session_state['data'] = []
         st.session_state['uploaded_images'] = {}
