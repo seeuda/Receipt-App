@@ -50,8 +50,8 @@ def test_api_connection(api_key):
     """【實施 API 預檢】確認金鑰是否具備模型存取權限"""
     try:
         genai.configure(api_key=api_key)
-        # 修正：移除 models/ 前綴以避免 404 衝突
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # ✅ 正確：必須使用 models/ 前綴
+        model = genai.GenerativeModel('models/gemini-1.5-flash')
         response = model.generate_content("ping")
         return True, "連線成功"
     except Exception as e:
@@ -61,8 +61,8 @@ def run_vlm_scan(api_key, image_bytes, year, country_info):
     """VLM 辨識：結合座標錨定並捕捉錯誤"""
     try:
         genai.configure(api_key=api_key)
-        # 修正：移除 models/ 前綴
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # ✅ 正確：必須使用 models/ 前綴
+        model = genai.GenerativeModel('models/gemini-1.5-flash')
         
         hint = country_info.get("decimal_hint", ".")
         prompt = f"""
