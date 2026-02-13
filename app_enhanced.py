@@ -220,7 +220,7 @@ with tab_main:
                         img_bytes = f.read()
                         res = run_vlm_scan(active_key, img_bytes, target_year, target_country)
                         if res:
-                            uid = hashlib.md5(img_bytes + f_user.encode()).hexdigest()[:12]
+                            uid = hashlib.md5(img_bytes).hexdigest()[:12]
                             
                             # 查詢匯率
                             receipt_date = res['date']
