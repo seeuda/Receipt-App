@@ -51,7 +51,7 @@ def test_api_connection(api_key):
     try:
         genai.configure(api_key=api_key)
         # ✅ 正確：必須使用 models/ 前綴
-        model = genai.GenerativeModel('models/gemini-1.5-flash')
+        model = genai.GenerativeModel('models/gemini-2.5-flash')
         response = model.generate_content("ping")
         return True, "連線成功"
     except Exception as e:
@@ -62,7 +62,7 @@ def run_vlm_scan(api_key, image_bytes, year, country_info):
     try:
         genai.configure(api_key=api_key)
         # ✅ 正確：必須使用 models/ 前綴
-        model = genai.GenerativeModel('models/gemini-1.5-flash')
+        model = genai.GenerativeModel('models/gemini-2.5-flash')
         
         hint = country_info.get("decimal_hint", ".")
         prompt = f"""
