@@ -158,7 +158,7 @@ with st.sidebar:
     # 專案選擇
     sel_p_name = st.selectbox("🎯 選擇執行專案", list(project_dict.keys()) + ["+ 註冊新專案"])
     
-    target_year = st.number_input("📅 年度(輔助單據辨識)", value=2026)
+    target_year = st.number_input("📅單據年度(輔助辨識)", value=2026)
 
     st.divider()
     
