@@ -1,8 +1,8 @@
 streamlit
 pandas
 gspread
+oauth2client
 google-cloud-vision
 yfinance
 Pillow
-numpy
-google-auth
+google-generativeai
