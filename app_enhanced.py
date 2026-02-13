@@ -327,19 +327,18 @@ with tab_main:
                                 t_base, t_total - t_base, t_total, r['備註'], r['UID']
                             ])
                     
-                    if rows_to_append:
-                        wks_main.append_rows(
-                            rows_to_append,
+                    if rows:
+                        wks.append_rows(
+                            rows,
                             value_input_option='USER_ENTERED',
                             insert_data_option='INSERT_ROWS',
                             table_range='A2:M2'
                         )
-                        st.success(f"✅ 同步完成！成功偵測並避開重複項，新增 {len(rows_to_append)} 筆。")
+                        st.success(f"✅ 同步完成！新增 {len(rows)} 筆。")
                         st.session_state['data'] = []
                         st.session_state['uploaded_images'] = {}
-                        st.balloons()
                     else:
-                        st.warning("⚠️ 攔截重複同步：所有單據 UID 已存在於雲端，未執行任何寫入。")
+                        st.warning("無新資料。")
                 except Exception as e:
                     st.error(f"同步錯誤: {e}")
 
