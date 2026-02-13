@@ -81,13 +81,37 @@ def add_project_to_registry(name: str, sheet_id: str) -> bool:
 def load_all_configs() -> Dict:
     configs = {}
     emoji_map = {"tw": "🇹🇼", "jp": "🇯🇵", "kr": "🇰🇷", "sg": "🇸🇬", "vn": "🇻🇳", "th": "🇹🇭", "my": "🇲🇾", "ph": "🇵🇭", "id": "🇮🇩", "in": "🇮🇳", "ae": "🇦🇪", "il": "🇮🇱", "sa": "🇸🇦", "de": "🇩🇪", "at": "🇦🇹", "ch": "🇨🇭", "cz": "🇨🇿", "pl": "🇵🇱", "tr": "🇹🇷", "gb": "🇬🇧", "fr": "🇫🇷", "nl": "🇳🇱", "be": "🇧🇪", "ie": "🇮🇪", "dk": "🇩🇰", "no": "🇳🇴", "se": "🇸🇪", "fi": "🇫🇮", "is": "🇮🇸", "it": "🇮🇹", "es": "🇪🇸", "pt": "🇵🇹", "gr": "🇬🇷", "us": "🇺🇸", "ca": "🇨🇦", "br": "🇧🇷", "mx": "🇲🇽", "au": "🇦🇺", "nz": "🇳🇿", "za": "🇿🇦"}
-    for f in glob.glob("configs/*.json"):
+    
+    files = glob.glob("configs/*.json")
+    if not files:
+        st.error("❌ 找不到配置檔！請確認 configs/ 目錄存在")
+        return configs
+    
+    for f in files:
+        filename = os.path.basename(f)
         # 排除 region_order.json（非國家參數檔）
-        if os.path.basename(f) == "region_order.json":
+        if filename == "region_order.json":
             continue
-        iso = os.path.basename(f).split('_')[0].lower()
-        with open(f, 'r', encoding='utf-8') as j:
-            d = json.load(j); d['emoji'] = emoji_map.get(iso, "🌐"); configs[iso] = d
+        
+        try:
+            iso = filename.split('_')[0].lower()
+            with open(f, 'r', encoding='utf-8') as j:
+                d = json.load(j)
+                
+                # 驗證必要欄位
+                if 'country' not in d:
+                    st.warning(f"⚠️ {filename} 缺少 'country' 欄位，跳過")
+                    continue
+                
+                d['emoji'] = emoji_map.get(iso, "🌐")
+                configs[iso] = d
+        except Exception as e:
+            st.warning(f"⚠️ 讀取 {filename} 失敗: {e}")
+            continue
+    
+    if not configs:
+        st.error("❌ 沒有成功載入任何國家配置！")
+    
     return configs
 
 def load_region_order() -> List[str]:
@@ -595,14 +619,29 @@ def main():
         # 建立區域-國家對應表
         reg_map = {}
         for iso, cfg in all_cfg.items():
+            # 安全檢查：確保必要欄位存在
+            if 'country' not in cfg or 'emoji' not in cfg:
+                st.warning(f"⚠️ 配置 {iso} 缺少必要欄位，跳過")
+                continue
+            
             rk = cfg.get('sub_region', '其他')
             if rk not in reg_map:
                 reg_map[rk] = []
             reg_map[rk].append((f"{cfg['emoji']} {cfg['country']}", cfg))
         
+        # 檢查是否有有效配置
+        if not reg_map:
+            st.error("❌ 沒有可用的國家配置！請檢查 configs/ 目錄")
+            st.stop()
+        
         # 讀取區域排序配置
         region_order = load_region_order()
         sorted_regions = [r for r in region_order if r in reg_map]
+        
+        # 檢查是否有有效區域
+        if not sorted_regions:
+            st.error("❌ 沒有可用的區域！")
+            st.stop()
         
         # 國家排序：Priority (低到高) + 字母順序
         for region in sorted_regions:
