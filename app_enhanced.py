@@ -258,10 +258,6 @@ with tab_main:
         # 頂部導航列
         c1, c2, c3 = st.columns(3)
         with c1:
-            u_sel = st.selectbox("登錄者姓名", names + ["其他人員"])
-            f_user = st.text_input("確認姓名", value="") if u_sel == "其他人員" else u_sel
-        
-        with c2:
             s_region = st.selectbox("🌍 選擇區域", c_master["region_order"])
             f_countries = {k: v for k, v in c_master["countries"].items() if v["region"] == s_region}
             s_country_keys = sorted(f_countries.keys(), key=lambda x: (f_countries[x]["priority"], f_countries[x]["name"]))
@@ -271,6 +267,10 @@ with tab_main:
                 format_func=lambda x: f_countries[x]["name"]
             )
             target_country = f_countries[sel_country_key]
+        
+        with c2:
+            u_sel = st.selectbox("👤 登錄者姓名", names + ["其他人員"])
+            f_user = st.text_input("確認姓名", value="") if u_sel == "其他人員" else u_sel
 
         with c3:
             fee_rate = st.number_input("手續費率 (%)", value=1.5) / 100
@@ -353,11 +353,13 @@ with tab_main:
                         new_date = st.date_input("日期", value=datetime.strptime(record['日期'], "%Y-%m-%d").date())
                         new_amount = st.number_input("外幣金額", value=float(record['外幣金額']), format="%.2f")
                         new_currency = st.text_input("幣別", value=record['幣別'])
+                        new_rate = st.number_input("💱 匯率", value=float(record['匯率']), format="%.3f", step=0.001, help="可手動修改匯率")
                         new_items = st.text_area("品項摘要", value=record['品項摘要'], height=100)
                         new_note = st.text_input("備註", value=record.get('備註', ''))
                         
-                        # 顯示當前匯率和台幣金額
-                        st.info(f"💱 匯率：{record['匯率']} | 💰 台幣金額：NT$ {record['台幣金額']:,.0f}")
+                        # 即時計算台幣金額
+                        calculated_twd = round(new_amount * new_rate, 0)
+                        st.info(f"💰 台幣金額：NT$ {calculated_twd:,.0f}")
                         
                         # 提交按鈕
                         submitted = st.form_submit_button("✅ 更新此筆資料", use_container_width=True)
@@ -367,6 +369,7 @@ with tab_main:
                             date_changed = new_date.strftime("%Y-%m-%d") != record['日期']
                             amount_changed = new_amount != record['外幣金額']
                             currency_changed = new_currency != record['幣別']
+                            rate_changed = new_rate != record['匯率']
                             
                             # 更新資料
                             st.session_state['data'][idx]['商店名稱'] = new_shop
@@ -376,10 +379,20 @@ with tab_main:
                             st.session_state['data'][idx]['品項摘要'] = new_items
                             st.session_state['data'][idx]['備註'] = new_note
                             
-                            # 如果日期、金額或幣別變更，重新計算
-                            if date_changed or amount_changed or currency_changed:
-                                new_rate = get_rate_by_date(new_currency, new_date.strftime("%Y-%m-%d"))
+                            # 匯率邏輯：
+                            # 1. 如果使用者手動修改匯率，優先使用使用者的值
+                            # 2. 如果只是修改日期/幣別，自動查詢新匯率
+                            if rate_changed:
+                                # 使用者手動修改匯率，使用使用者輸入的值
                                 st.session_state['data'][idx]['匯率'] = round(new_rate, 3)
+                                st.session_state['data'][idx]['台幣金額'] = round(new_amount * new_rate, 0)
+                            elif date_changed or currency_changed:
+                                # 日期或幣別變更，自動查詢新匯率
+                                auto_rate = get_rate_by_date(new_currency, new_date.strftime("%Y-%m-%d"))
+                                st.session_state['data'][idx]['匯率'] = round(auto_rate, 3)
+                                st.session_state['data'][idx]['台幣金額'] = round(new_amount * auto_rate, 0)
+                            elif amount_changed:
+                                # 只修改金額，使用原匯率重新計算
                                 st.session_state['data'][idx]['台幣金額'] = round(new_amount * new_rate, 0)
                             
                             st.success("✅ 資料已更新！")
