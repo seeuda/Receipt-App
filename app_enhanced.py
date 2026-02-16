@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import google.generativeai as genai
 from PIL import Image
 import base64
+import re
 
 # ==========================================
 # I. 基礎設施與配置自動化
@@ -50,32 +51,32 @@ def get_rate_by_date(currency_code, target_date):
 
             return None
 
-        currency_code = str(currency_code).strip().upper()
+        check_pairs = [
+            f"{currency_code}TWD=X",
+            f"TWD{currency_code}=X",
+            f"{currency_code}USD=X",
+            f"USD{currency_code}=X"
+        ]
 
-        # 1) 先試直連
-        direct = fetch_pair(f"{currency_code}TWD=X", target_date)
-        if direct is not None:
-            return direct
+        for pair in check_pairs:
+            v = fetch_pair(pair, target_date)
+            if v is not None and v > 0:
+                if pair.startswith("TWD"):
+                    return 1.0 / v if v != 0 else 35.0
+                elif pair.endswith("USD=X"):
+                    usdtwd = fetch_pair("USDTWD=X", target_date)
+                    if usdtwd:
+                        if pair.startswith("USD"):
+                            return usdtwd / v if v != 0 else 35.0
+                        else:
+                            return v * usdtwd
+                else:
+                    return v
 
-        # 2) 走 USD 交叉
-        usd_to_twd = fetch_pair("USDTWD=X", target_date)
+        return 35.0
 
-        # 2a) 1 CCY = ? USD
-        ccy_to_usd = fetch_pair(f"{currency_code}USD=X", target_date)
-
-        # 2b) 若只有 USDCCY，取倒數
-        if ccy_to_usd is None:
-            usd_to_ccy = fetch_pair(f"USD{currency_code}=X", target_date)
-            if usd_to_ccy and usd_to_ccy > 0:
-                ccy_to_usd = 1.0 / usd_to_ccy
-
-        if usd_to_twd is not None and ccy_to_usd is not None:
-            return ccy_to_usd * usd_to_twd
-
-        return 37.0
-
-    except:
-        return 37.0
+    except Exception as e:
+        return 35.0
 
 def get_gc():
     try:
@@ -119,21 +120,62 @@ def test_api_connection(api_key):
         return False, str(e)
 
 def run_vlm_scan(api_key, image_bytes, year, country_info):
-    """VLM 辨識：結合座標錨定並捕捉錯誤"""
+    """VLM 辨識：結合年度上下文智慧判斷日期格式"""
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('models/gemini-2.5-flash')
         
         hint = country_info.get("decimal_hint", ".")
+        
+        # 強化提示詞，加入年度上下文
         prompt = f"""
-        你是審計專家。分析【{country_info['name']}】收據影像。基準年份:{year}。預設幣別:{country_info['currency']}。
-        小數點習慣:'{hint}'。回傳純 JSON: {{"shop":"","amount":0.0,"date":"YYYY-MM-DD","currency":"","items":""}}
-        """
+你是審計專家。分析【{country_info['name']}】收據影像。
+
+重要參數：
+- 基準年份：{year}（使用者指定的年度）
+- 預設幣別：{country_info['currency']}
+- 小數點習慣：'{hint}'
+
+日期辨識規則：
+1. 如果看到 "21 06 25" 或 "21/06/25" 或 "21.06.25"：
+   - 檢查第一個數字是否為合理年份（20XX或19XX）
+   - 如果第一個數字 ≤ 31，判斷為「日月年」格式（DD/MM/YY）
+   - 使用基準年份 {year} 來推斷完整年份（例如 25 → {year}，21 → 2021）
+2. 如果看到 "2025-06-21" 或 "2025/06/21"，直接識別為「年月日」格式
+3. 優先考慮基準年份 {year} 及其前後年份
+
+回傳純 JSON（無markdown格式）:
+{{"shop":"店名","amount":金額數字,"date":"YYYY-MM-DD","currency":"{country_info['currency']}","items":"品項"}}
+
+注意：
+- date 必須是 YYYY-MM-DD 格式
+- amount 必須是數字，不要有貨幣符號
+- 如果日期是 DD/MM/YY 格式，轉換時考慮基準年份 {year}
+"""
+        
         img = Image.open(io.BytesIO(image_bytes))
         response = model.generate_content([prompt, img])
         
         raw = response.text.replace('```json', '').replace('```', '').strip()
-        return json.loads(raw)
+        result = json.loads(raw)
+        
+        # 後處理：驗證日期合理性
+        try:
+            date_str = result['date']
+            parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
+            
+            # 如果年份太舊或太新，嘗試修正
+            if parsed_date.year < 2000 or parsed_date.year > year + 1:
+                # 可能是日月年格式被錯誤識別
+                # 例如 2021-06-25 可能應該是 2025-06-21
+                parts = date_str.split('-')
+                if len(parts) == 3:
+                    # 嘗試重組為 year-month-day
+                    result['date'] = f"{year}-{parts[1]}-{parts[2]}"
+        except:
+            pass
+        
+        return result
     except Exception as e:
         st.session_state['vlm_error'] = f"{type(e).__name__}: {str(e)}"
         return None
@@ -142,7 +184,7 @@ def run_vlm_scan(api_key, image_bytes, year, country_info):
 # III. UI 佈局 (MVC 架構)
 # ==========================================
 
-st.set_page_config(page_title="考察支出登錄系統 v4.8.0", layout="wide")
+st.set_page_config(page_title="考察支出登錄系統 v4.9.0", layout="wide")
 
 # 初始化 Session 狀態
 if 'data' not in st.session_state: st.session_state['data'] = []
@@ -155,11 +197,12 @@ admin_pwd, project_dict, c_master = load_bootstrap_data()
 with st.sidebar:
     st.title("🛡️ 系統指揮中心")
     
+    # 年度選擇（移到最上方）
+    target_year = st.number_input("📅 單據年度（輔助辨識）", value=2026, min_value=2020, max_value=2030)
+    
     # 專案選擇
     sel_p_name = st.selectbox("🎯 選擇執行專案", list(project_dict.keys()) + ["+ 註冊新專案"])
     
-    target_year = st.number_input("📅單據年度(輔助辨識)", value=2026)
-
     st.divider()
     
     # 權限分流與 API 預檢
@@ -213,7 +256,7 @@ with tab_main:
         except: names = []
 
         # 頂部導航列
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3 = st.columns(3)
         with c1:
             u_sel = st.selectbox("登錄者姓名", names + ["其他人員"])
             f_user = st.text_input("確認姓名", value="") if u_sel == "其他人員" else u_sel
@@ -231,12 +274,13 @@ with tab_main:
 
         with c3:
             fee_rate = st.number_input("手續費率 (%)", value=1.5) / 100
-        with c4:
-            st.link_button("📂 開啟專案 Sheet", f"https://docs.google.com/spreadsheets/d/{tid}/edit", use_container_width=True)
 
         st.divider()
+        
+        # 批次上傳
         files = st.file_uploader("批次上傳單據照片", accept_multiple_files=True, type=['jpg','png','jpeg'])
 
+        # AI 辨識按鈕
         if st.button("⚡ 啟動 AI 自動偵察", type="primary", use_container_width=True):
             if not active_key: 
                 st.error("❌ 尚未取得 API 授權。")
@@ -249,7 +293,7 @@ with tab_main:
                         img_bytes = f.read()
                         res = run_vlm_scan(active_key, img_bytes, target_year, target_country)
                         if res:
-                            uid = hashlib.md5(img_bytes).hexdigest()[:12]
+                            uid = hashlib.md5(img_bytes + f_user.encode()).hexdigest()[:12]
                             
                             # 查詢匯率
                             receipt_date = res['date']
@@ -275,64 +319,71 @@ with tab_main:
                         st.session_state['data'] = batch
                         st.session_state['uploaded_images'] = images
                         st.rerun()
+        
+        # 開啟專案連結（移到辨識按鈕下方）
+        st.link_button("📂 開啟專案 Sheet", f"https://docs.google.com/spreadsheets/d/{tid}/edit", use_container_width=True)
 
-    # --- 核對表格與預覽 ---
+    # --- 核對表格：改為直式卡片顯示（手機友善） ---
     if st.session_state['data']:
+        st.divider()
         st.subheader("📝 辨識結果核對")
         
-        # 建立兩欄：左側表格，右側圖片預覽
-        col_table, col_preview = st.columns([2, 1])
-        
-        with col_table:
-            # 創建可編輯的 DataFrame
-            df = pd.DataFrame(st.session_state['data'])
-            
-            # 使用 data_editor 並監聽變更
-            edited_df = st.data_editor(
-                df,
-                use_container_width=True,
-                num_rows="dynamic",
-                column_config={
-                    "外幣金額": st.column_config.NumberColumn(format="%.2f"),
-                    "匯率": st.column_config.NumberColumn(format="%.3f"),
-                    "台幣金額": st.column_config.NumberColumn(format="%.0f"),
-                },
-                key="receipt_editor"
-            )
-            
-            # 偵測變更並重新計算台幣金額
-            if not edited_df.equals(df):
-                for idx, row in edited_df.iterrows():
-                    # 如果日期或金額或幣別有變更，重新計算
-                    old_row = df.loc[idx]
-                    if (row['日期'] != old_row['日期'] or 
-                        row['外幣金額'] != old_row['外幣金額'] or
-                        row['幣別'] != old_row['幣別']):
+        # 使用 tabs 或 expander 顯示每筆收據
+        for idx, record in enumerate(st.session_state['data']):
+            with st.expander(f"📄 收據 {idx+1}: {record['商店名稱']} - {record['日期']}", expanded=(idx==0)):
+                col_img, col_form = st.columns([1, 1])
+                
+                # 左側：圖片預覽
+                with col_img:
+                    st.markdown("#### 📷 收據影像")
+                    uid = record['UID']
+                    if uid in st.session_state['uploaded_images']:
+                        img_data = base64.b64decode(st.session_state['uploaded_images'][uid])
+                        st.image(img_data, use_container_width=True)
+                    else:
+                        st.info("圖片預覽不可用")
+                
+                # 右側：編輯表單
+                with col_form:
+                    st.markdown("#### ✏️ 資料編輯")
+                    
+                    # 使用 form 避免每次輸入都觸發 rerun
+                    with st.form(key=f"form_{uid}"):
+                        new_shop = st.text_input("商店名稱", value=record['商店名稱'])
+                        new_date = st.date_input("日期", value=datetime.strptime(record['日期'], "%Y-%m-%d").date())
+                        new_amount = st.number_input("外幣金額", value=float(record['外幣金額']), format="%.2f")
+                        new_currency = st.text_input("幣別", value=record['幣別'])
+                        new_items = st.text_area("品項摘要", value=record['品項摘要'], height=100)
+                        new_note = st.text_input("備註", value=record.get('備註', ''))
                         
-                        # 重新查詢匯率
-                        new_rate = get_rate_by_date(row['幣別'], row['日期'])
-                        edited_df.at[idx, '匯率'] = round(new_rate, 3)
-                        edited_df.at[idx, '台幣金額'] = round(row['外幣金額'] * new_rate, 0)
-                
-                # 更新 session state
-                st.session_state['data'] = edited_df.to_dict('records')
-                st.rerun()
-        
-        with col_preview:
-            st.markdown("### 📷 收據預覽")
-            
-            # 選擇要預覽的收據
-            if len(edited_df) > 0:
-                preview_options = [f"{row['商店名稱']} - {row['日期']}" for _, row in edited_df.iterrows()]
-                selected_idx = st.selectbox("選擇收據", range(len(preview_options)), format_func=lambda x: preview_options[x])
-                
-                # 顯示圖片
-                selected_uid = edited_df.iloc[selected_idx]['UID']
-                if selected_uid in st.session_state['uploaded_images']:
-                    img_data = base64.b64decode(st.session_state['uploaded_images'][selected_uid])
-                    st.image(img_data, caption=f"收據 - {preview_options[selected_idx]}", use_container_width=True)
-                else:
-                    st.info("圖片預覽不可用")
+                        # 顯示當前匯率和台幣金額
+                        st.info(f"💱 匯率：{record['匯率']} | 💰 台幣金額：NT$ {record['台幣金額']:,.0f}")
+                        
+                        # 提交按鈕
+                        submitted = st.form_submit_button("✅ 更新此筆資料", use_container_width=True)
+                        
+                        if submitted:
+                            # 檢查是否有變更
+                            date_changed = new_date.strftime("%Y-%m-%d") != record['日期']
+                            amount_changed = new_amount != record['外幣金額']
+                            currency_changed = new_currency != record['幣別']
+                            
+                            # 更新資料
+                            st.session_state['data'][idx]['商店名稱'] = new_shop
+                            st.session_state['data'][idx]['日期'] = new_date.strftime("%Y-%m-%d")
+                            st.session_state['data'][idx]['外幣金額'] = new_amount
+                            st.session_state['data'][idx]['幣別'] = new_currency
+                            st.session_state['data'][idx]['品項摘要'] = new_items
+                            st.session_state['data'][idx]['備註'] = new_note
+                            
+                            # 如果日期、金額或幣別變更，重新計算
+                            if date_changed or amount_changed or currency_changed:
+                                new_rate = get_rate_by_date(new_currency, new_date.strftime("%Y-%m-%d"))
+                                st.session_state['data'][idx]['匯率'] = round(new_rate, 3)
+                                st.session_state['data'][idx]['台幣金額'] = round(new_amount * new_rate, 0)
+                            
+                            st.success("✅ 資料已更新！")
+                            st.rerun()
         
         st.divider()
         
@@ -357,7 +408,7 @@ with tab_main:
                     rows_to_append = []  # 要新增的
 
                     # === 逐筆檢查 ===
-                    for _, r in edited_df.iterrows():
+                    for r in st.session_state['data']:
                         uid = str(r['UID']).strip()
 
                         t_base = int(r['台幣金額'])
@@ -380,34 +431,26 @@ with tab_main:
                             # 不存在 → 新增
                             rows_to_append.append(row_values_A_to_L + [uid])
 
-                    # === 批次更新 ===
-                    updated_count = 0
+                    # === 批次執行 ===
                     if updates:
-                        wks.batch_update(updates, value_input_option="USER_ENTERED")
-                        updated_count = len(updates)
+                        wks.batch_update(updates, value_input_option='USER_ENTERED')
 
-                    # === 批次新增（強制插入） ===
-                    appended_count = 0
                     if rows_to_append:
-                        wks.append_rows(
-                            rows_to_append,
-                            value_input_option="USER_ENTERED",
-                            insert_data_option="INSERT_ROWS",
-                            table_range="A2:M2"
-                        )
-                        appended_count = len(rows_to_append)
+                        wks.append_rows(rows_to_append, value_input_option='USER_ENTERED')
 
-                    if updated_count or appended_count:
-                        st.success(f"✅ 同步完成！更新 {updated_count} 筆、新增 {appended_count} 筆。")
-                        st.session_state['data'] = []
-                        st.session_state['uploaded_images'] = {}
-                        st.balloons()
-                    else:
-                        st.warning("⚠️ 無資料可同步。")
+                    msg = []
+                    if updates:
+                        msg.append(f"更新 {len(updates)} 筆")
+                    if rows_to_append:
+                        msg.append(f"新增 {len(rows_to_append)} 筆")
+
+                    st.success(f"✅ 同步完成！{' / '.join(msg)}")
+                    st.session_state['data'] = []
+                    st.session_state['uploaded_images'] = {}
+                    st.rerun()
 
                 except Exception as e:
                     st.error(f"同步錯誤: {e}")
-
 
 with tab_reg:
     st.header("🛠️ 專案註冊")
