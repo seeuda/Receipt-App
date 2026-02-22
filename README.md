@@ -28,6 +28,8 @@ Receipt-App 是一套以 **Streamlit + Google 生態系 API** 打造的收據登
 ├── app_enhanced.py               # 增強版：Gemini VLM + API 預檢 + Token 優化
 ├── countries_master.json         # 國家/區域/幣別等主資料
 ├── requirements.txt              # Python 套件依賴
+├── .streamlit/secrets.toml.example # Secrets 範本（可提交）
+├── .gitignore                    # 忽略本機 secrets 與暫存檔
 ├── TESTING.md                    # 測試建議與案例
 ├── QUICKSTART.md                 # 精簡啟動說明
 └── 版本更新說明文件（V4.8.0~V4.9.2）
@@ -52,12 +54,17 @@ pip install -r requirements.txt
 
 ---
 
-## 設定 `secrets.toml`
+## 設定 Secrets（本機與部署皆適用）
 
-請在專案根目錄建立 `.streamlit/secrets.toml`，至少包含：
+請在專案根目錄建立 `.streamlit/secrets.toml`（本機）或在部署平台 Secrets UI 設定相同欄位。
+
+- 請勿提交 `.streamlit/secrets.toml` 到版控。
+- 可使用 `.streamlit/secrets.toml.example` 當範本。
+
+最少建議包含：
 
 ```toml
-admin_registry_id = "<管理總表 Google Sheet ID>"
+admin_registry_id = "<管理總表 Google Sheet ID>" # app.py / app_enhanced.py 都會讀取
 gemini_api_key = "<你的 Gemini API Key>" # 使用 app_enhanced.py 時需要
 
 [gcp_service_account]
@@ -74,7 +81,7 @@ client_x509_cert_url = "..."
 universe_domain = "googleapis.com"
 ```
 
-> 請務必將 `.streamlit/secrets.toml` 納入 `.gitignore`，避免敏感資訊外洩。
+> `app_enhanced.py` 會優先讀取 `admin_registry_id`；若未設定則回退為內建預設管理表並顯示提示。
 
 ---
 
