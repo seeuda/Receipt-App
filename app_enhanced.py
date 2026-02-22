@@ -304,15 +304,24 @@ with tab_main:
                         if res:
                             uid = hashlib.md5(img_bytes + f_user.encode()).hexdigest()[:12]
                             
+                            # 確保日期格式正確
+                            try:
+                                # 驗證日期格式
+                                receipt_date = res['date']
+                                datetime.strptime(receipt_date, "%Y-%m-%d")
+                            except:
+                                # 如果格式錯誤，使用當天日期
+                                receipt_date = datetime.now().strftime("%Y-%m-%d")
+                                st.warning(f"⚠️ 收據日期格式錯誤，已設為今天：{receipt_date}")
+                            
                             # 查詢匯率
-                            receipt_date = res['date']
                             exchange_rate = get_rate_by_date(res['currency'], receipt_date)
                             twd_amount = round(res['amount'] * exchange_rate, 0)
                             
                             batch.append({
                                 "UID": uid,
                                 "商店名稱": res['shop'],
-                                "日期": res['date'],
+                                "日期": receipt_date,  # 使用驗證過的日期
                                 "外幣金額": res['amount'],
                                 "幣別": res['currency'],
                                 "匯率": round(exchange_rate, 3),
@@ -325,8 +334,19 @@ with tab_main:
                             images[uid] = base64.b64encode(img_bytes).decode()
                     
                     if batch:
-                        st.session_state['data'] = batch
-                        st.session_state['uploaded_images'] = images
+                        # 使用 UID 去重：只保留新的資料
+                        existing_uids = {record['UID'] for record in st.session_state['data']}
+                        new_records = [record for record in batch if record['UID'] not in existing_uids]
+                        
+                        if new_records:
+                            # 附加新資料（而非覆蓋）
+                            st.session_state['data'].extend(new_records)
+                            # 更新圖片
+                            st.session_state['uploaded_images'].update(images)
+                            st.success(f"✅ 新增 {len(new_records)} 筆辨識結果")
+                        else:
+                            st.warning("⚠️ 所有收據都已存在，未新增任何資料")
+                        
                         st.rerun()
         
         # 開啟專案連結（移到辨識按鈕下方）
@@ -360,7 +380,19 @@ with tab_main:
                     # 使用 idx 確保 key 唯一性
                     with st.form(key=f"receipt_form_{idx}"):
                         new_shop = st.text_input("商店名稱", value=record['商店名稱'])
-                        new_date = st.date_input("日期", value=datetime.strptime(record['日期'], "%Y-%m-%d").date())
+                        
+                        # 日期處理：加入錯誤處理
+                        try:
+                            if isinstance(record['日期'], str):
+                                date_value = datetime.strptime(record['日期'], "%Y-%m-%d").date()
+                            else:
+                                date_value = record['日期']
+                        except:
+                            # 如果日期格式錯誤，使用當天日期
+                            date_value = datetime.now().date()
+                            st.warning(f"⚠️ 日期格式錯誤，已設為今天：{date_value}")
+                        
+                        new_date = st.date_input("日期", value=date_value)
                         new_amount = st.number_input("外幣金額", value=float(record['外幣金額']), format="%.2f")
                         new_currency = st.text_input("幣別", value=record['幣別'])
                         new_rate = st.number_input("💱 匯率", value=float(record['匯率']), format="%.3f", step=0.001, help="可手動修改匯率")
