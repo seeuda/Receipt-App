@@ -113,47 +113,53 @@ def test_api_connection(api_key):
     """【實施 API 預檢】確認金鑰是否具備模型存取權限"""
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('models/gemini-2.5-flash')
-        response = model.generate_content("ping")
-        return True, "連線成功"
+        # 優化：使用 list_models 代替 generate_content，避免不必要的 token 消耗
+        models = list(genai.list_models())
+        if any('generateContent' in m.supported_generation_methods for m in models):
+            return True, f"連線成功（可用模型數：{len(models)}）"
+        else:
+            return False, "API Key 有效但無可用模型"
     except Exception as e:
         return False, str(e)
 
 def run_vlm_scan(api_key, image_bytes, year, country_info):
-    """VLM 辨識：結合年度上下文智慧判斷日期格式"""
+    """VLM 辨識：優化版 - 降低 Token 消耗"""
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('models/gemini-2.5-flash')
         
-        hint = country_info.get("decimal_hint", ".")
+        # === 優化 1: 使用 System Instruction 減少重複 Prompt Token ===
+        system_instruction = """你是專業審計師。任務：
+1. 精確提取收據關鍵資訊
+2. 回傳純 JSON（無 markdown 格式）
+3. 日期格式必須是 YYYY-MM-DD
+
+JSON 格式：{"shop":"店名","amount":數字,"date":"YYYY-MM-DD","currency":"幣別","items":"品項"}"""
+
+        model = genai.GenerativeModel(
+            model_name='models/gemini-2.5-flash',
+            system_instruction=system_instruction
+        )
         
-        # 強化提示詞，加入年度上下文
-        prompt = f"""
-你是審計專家。分析【{country_info['name']}】收據影像。
-
-重要參數：
-- 基準年份：{year}（使用者指定的年度）
-- 預設幣別：{country_info['currency']}
-- 小數點習慣：'{hint}'
-
-日期辨識規則：
-1. 如果看到 "21 06 25" 或 "21/06/25" 或 "21.06.25"：
-   - 檢查第一個數字是否為合理年份（20XX或19XX）
-   - 如果第一個數字 ≤ 31，判斷為「日月年」格式（DD/MM/YY）
-   - 使用基準年份 {year} 來推斷完整年份（例如 25 → {year}，21 → 2021）
-2. 如果看到 "2025-06-21" 或 "2025/06/21"，直接識別為「年月日」格式
-3. 優先考慮基準年份 {year} 及其前後年份
-
-回傳純 JSON（無markdown格式）:
-{{"shop":"店名","amount":金額數字,"date":"YYYY-MM-DD","currency":"{country_info['currency']}","items":"品項"}}
-
-注意：
-- date 必須是 YYYY-MM-DD 格式
-- amount 必須是數字，不要有貨幣符號
-- 如果日期是 DD/MM/YY 格式，轉換時考慮基準年份 {year}
-"""
-        
+        # === 優化 2: 壓縮圖片以降低 Visual Token 消耗 ===
         img = Image.open(io.BytesIO(image_bytes))
+        
+        # 計算縮放比例（保持長寬比）
+        max_dimension = 1600  # 對 OCR 來說 1600px 已足夠
+        if max(img.size) > max_dimension:
+            ratio = max_dimension / max(img.size)
+            new_size = tuple(int(dim * ratio) for dim in img.size)
+            img = img.resize(new_size, Image.Resampling.LANCZOS)
+        
+        # === 優化 3: 簡化 Prompt（關鍵資訊已在 System Instruction）===
+        hint = country_info.get("decimal_hint", ".")
+        prompt = f"""收據分析參數：
+- 年度：{year}（用於判斷日期格式，如 DD/MM/YY → YYYY-MM-DD）
+- 國家：{country_info['name']}
+- 預設幣別：{country_info['currency']}
+- 小數點：'{hint}'
+
+日期規則：若看到 "21/06/25" 且 21≤31，判斷為 DD/MM/YY，結合年度 {year} 推斷完整日期。"""
+        
         response = model.generate_content([prompt, img])
         
         raw = response.text.replace('```json', '').replace('```', '').strip()
@@ -166,11 +172,8 @@ def run_vlm_scan(api_key, image_bytes, year, country_info):
             
             # 如果年份太舊或太新，嘗試修正
             if parsed_date.year < 2000 or parsed_date.year > year + 1:
-                # 可能是日月年格式被錯誤識別
-                # 例如 2021-06-25 可能應該是 2025-06-21
                 parts = date_str.split('-')
                 if len(parts) == 3:
-                    # 嘗試重組為 year-month-day
                     result['date'] = f"{year}-{parts[1]}-{parts[2]}"
         except:
             pass
@@ -289,8 +292,14 @@ with tab_main:
                 with st.spinner(f"正在對 {target_country['name']} 收據進行 VLM 分析..."):
                     batch = []
                     images = {}
-                    for f in files:
+                    for idx, f in enumerate(files):
                         img_bytes = f.read()
+                        
+                        # === 優化：在批次處理中加入延遲，避免 Rate Limit ===
+                        if idx > 0:  # 第一張不用等
+                            import time
+                            time.sleep(1)  # 每張間隔 1 秒
+                        
                         res = run_vlm_scan(active_key, img_bytes, target_year, target_country)
                         if res:
                             uid = hashlib.md5(img_bytes + f_user.encode()).hexdigest()[:12]
