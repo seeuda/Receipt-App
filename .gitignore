@@ -1,0 +1,6 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Streamlit local secrets (do not commit)
+.streamlit/secrets.toml

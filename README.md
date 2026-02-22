@@ -1,95 +1,130 @@
-# 考察支出登錄系統 (Receipt-App)
+# Receipt-App｜考察支出登錄系統
 
-本專案是一款基於 **Python** 與 **Streamlit** 開發的跨國支出記帳工具，專為機關辦理出國計畫的現場經費執行人員設計。使用者將收據拍照上傳，透過 Google Cloud Vision AI 辨識多國收據資訊，自動換算匯率，並可經人工確認或修正後，同步至自行指定的Google Sheets。
+Receipt-App 是一套以 **Streamlit + Google 生態系 API** 打造的收據登錄工具，協助使用者將海外收據快速完成：
+**OCR / VLM 辨識 → 人工校對 → 匯率換算 → 寫入 Google Sheets**。
 
-## 🌟 核心特色
+目前專案提供兩個可用版本：
+- `app.py`：穩定版（Google Vision OCR 流程）
+- `app_enhanced.py`：增強版（Gemini VLM + Token 優化）
 
-* **多國在地化支援**：預設支援 40 國參數，自動處理各國小數點符號（如德國 `,`）、日期順序（DMY/YMD）與地址雜訊過濾。
-* **配置驅動架構 (Decoupled)**：系統邏輯與國家參數完全解耦，透過 `configs/*.json` 即可擴充新國家的辨識規則，無需修改主程式。
-* **精準語義提取**：具備標靶過濾機制，自動剔除收據中的商店地址、通訊資訊與無意義標頭。
-* **動態專案管理**：支援即時註冊新專案試算表，自動辨識標題列索引，並相容 Google Form 的時間戳記格式。
-* **可靠的判重機制**：透過商店、日期與金額生成唯一識別碼 (UID)，防止單據重複同步。
+---
 
-## 🛠️ 技術棧
+## 主要功能
 
-* **Frontend**: Streamlit
-* **OCR Engine**: Google Cloud Vision AI
-* **Data Processing**: Pandas, Regex
-* **Finance API**: yfinance (Real-time & Historical FX rates)
-* **Storage**: Google Sheets API (gspread)
+- 批次上傳收據圖片（JPG / JPEG / PNG）
+- 自動抽取店名、日期、金額、品項等欄位
+- 支援多國幣別與匯率轉換（`yfinance`）
+- 以 Google 試算表作為專案資料庫與同步目標
+- 可於 UI 中人工修正辨識結果後再同步
+- 具備 UID 去重與覆寫更新機制，降低重複登錄風險
 
-## 📂 專案結構
+---
+
+## 專案檔案說明
 
 ```text
 .
-├── app.py                # 主程式：UI 介面與核心執行邏輯
-├── generate_configs.py   # 配置生成器：產出 40 國在地化 JSON 參數
-├── configs/              # 自動生成：儲存各國參數檔 (JSON)
-└── .streamlit/
-    └── secrets.toml      # 敏感資訊：API Key 與試算表 ID (不進入 Git)
-
+├── app.py                        # 穩定版：Google Vision OCR 主流程
+├── app_enhanced.py               # 增強版：Gemini VLM + API 預檢 + Token 優化
+├── countries_master.json         # 國家/區域/幣別等主資料
+├── requirements.txt              # Python 套件依賴
+├── .streamlit/secrets.toml.example # Secrets 範本（可提交）
+├── .gitignore                    # 忽略本機 secrets 與暫存檔
+├── TESTING.md                    # 測試建議與案例
+├── QUICKSTART.md                 # 精簡啟動說明
+└── 版本更新說明文件（V4.8.0~V4.9.2）
 ```
 
-## 🚀 快速開始
+---
 
-### 1. 環境準備
+## 執行前準備
 
-* Python 3.10+
-* 建立 Google Cloud 專案並啟用 Vision API 與 Sheets API。
-* 取得 Service Account Key (JSON 格式)。
+1. **Python 3.10+**
+2. 建立 Google Cloud 專案並啟用相關 API（至少含 Sheets；若使用 `app.py` 則需 Vision）
+3. 準備 Service Account JSON 金鑰
+4. （若使用 `app_enhanced.py`）準備 Gemini API Key
 
-### 2. 安裝依賴
+---
+
+## 安裝
 
 ```bash
-pip install streamlit pandas gspread google-cloud-vision yfinance Pillow
-
+pip install -r requirements.txt
 ```
 
-### 3. 配置秘密資訊
+---
 
-在 `.streamlit/secrets.toml` 中填入以下資訊：
+## 設定 Secrets（本機與部署皆適用）
+
+請在專案根目錄建立 `.streamlit/secrets.toml`（本機）或在部署平台 Secrets UI 設定相同欄位。
+
+- 請勿提交 `.streamlit/secrets.toml` 到版控。
+- 可使用 `.streamlit/secrets.toml.example` 當範本。
+
+最少建議包含：
 
 ```toml
-admin_registry_id = "您的管理總表試算表ID"
+admin_registry_id = "<管理總表 Google Sheet ID>" # app.py / app_enhanced.py 都會讀取
+gemini_api_key = "<你的 Gemini API Key>" # 使用 app_enhanced.py 時需要
 
 [gcp_service_account]
 type = "service_account"
 project_id = "..."
 private_key_id = "..."
-private_key = "..."
+private_key = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 client_email = "..."
-# ...其餘 Service Account 欄位
-
+client_id = "..."
+auth_uri = "https://accounts.google.com/o/oauth2/auth"
+token_uri = "https://oauth2.googleapis.com/token"
+auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
+client_x509_cert_url = "..."
+universe_domain = "googleapis.com"
 ```
 
-### 4. 初始化配置
+> `app_enhanced.py` 會優先讀取 `admin_registry_id`；若未設定則回退為內建預設管理表並顯示提示。
 
-執行腳本產出各國參數檔：
+---
 
-```bash
-python generate_configs.py
+## 啟動方式
 
-```
-
-### 5. 啟動系統
+### 穩定版（Google Vision OCR）
 
 ```bash
 streamlit run app.py
-
 ```
 
-## 🔒 安全性規範
+### 增強版（Gemini VLM）
 
-本專案嚴格遵守安全性標準：
+```bash
+streamlit run app_enhanced.py
+```
 
-* **禁止硬編碼**：所有 API Key 與私有路徑必須透過 `st.secrets` 或環境變數讀取。
-* **版本控制排除**：請務必將 `secrets.toml` 加入 `.gitignore`，嚴禁上傳至公開倉庫。
+---
 
-## ⚖️ 授權協議 (License)
+## 使用流程（建議）
 
-本專案採用 **MIT License** 授權。您可以自由地使用、修改及分發本程式碼，唯須保留原作者之版權聲明。
+1. 選擇專案與登錄者
+2. 選擇國家/區域與相關費率參數
+3. 批次上傳收據圖片
+4. 執行自動辨識
+5. 在表格中人工校正欄位
+6. 同步至 Google Sheets
 
-⚖️ License
-This project is licensed under the MIT License - see the LICENSE file for details.
+---
 
-Copyright (c) 2026 JiunShiuan Wang
+## 版本文件
+
+- `V4.8.0_FEATURES.md`
+- `V4.9.0_OPTIMIZATION.md`
+- `V4.9.1_UPDATE.md`
+- `V4.9.2_TOKEN_OPTIMIZATION.md`
+- `MODEL_UPDATE_GUIDE.md`
+- `GEMINI_API_FIX.md`
+
+若你要升級或排查 API / Token 相關問題，建議先讀 `V4.9.2_TOKEN_OPTIMIZATION.md` 與 `GEMINI_API_FIX.md`。
+
+---
+
+## 授權
+
+本專案採用 MIT License，詳見 `LICENSE`。
