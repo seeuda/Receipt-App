@@ -312,7 +312,7 @@ with tab_main:
                             except:
                                 # 如果格式錯誤，使用當天日期
                                 receipt_date = datetime.now().strftime("%Y-%m-%d")
-                                st.warning(f"⚠️ 收據日期格式錯誤，已設為今天：{receipt_date}")
+                                st.warning(f"⚠️ 部分收據日期無法辨識，已設為今天：{receipt_date}")
                             
                             # 查詢匯率
                             exchange_rate = get_rate_by_date(res['currency'], receipt_date)
