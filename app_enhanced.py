@@ -14,23 +14,8 @@ import re
 # I. 基礎設施與配置自動化
 # ==========================================
 
-DEFAULT_REGISTRY_ID = "1rPQlGHtvx6M630vnZ_FANMRyR_EnMrzje85V3mZ2H0M"
+REGISTRY_ID = "1rPQlGHtvx6M630vnZ_FANMRyR_EnMrzje85V3mZ2H0M"
 TEMPLATE_URL = "https://docs.google.com/spreadsheets/d/15kD4ZMYEZvN3unbIhkH8b69KAVpiiKP-TA4q3pYJ86k/edit"
-
-def get_registry_id() -> str:
-    """優先讀取 secrets 設定；未設定時回退到預設值並提示。"""
-    try:
-        registry_id = str(st.secrets.get("admin_registry_id", "")).strip()
-        if registry_id:
-            return registry_id
-    except Exception:
-        pass
-
-    st.warning(
-        "⚠️ 未設定 `admin_registry_id`，目前使用內建預設管理表。"
-        "建議在 `.streamlit/secrets.toml` 或部署平台 Secrets 設定此值。"
-    )
-    return DEFAULT_REGISTRY_ID
 
 def get_rate_by_date(currency_code, target_date):
     if currency_code in ("TWD", "NTD"):
@@ -109,8 +94,7 @@ def load_bootstrap_data():
     gc = get_gc()
     if not gc: return "ADMIN", {}, {}
     try:
-        registry_id = get_registry_id()
-        sh = gc.open_by_key(registry_id)
+        sh = gc.open_by_key(REGISTRY_ID)
         pwd = str(sh.worksheet("Auth").acell('A1').value).strip()
         recs = sh.get_worksheet(0).get_all_records()
         valid_p = {r["專案名稱"]: r["試算表 ID"] for r in recs if str(r.get("啟用狀態(請選TRUE)", "")).upper() == "TRUE"}
@@ -118,10 +102,7 @@ def load_bootstrap_data():
             c_master = json.load(f)
         return pwd, valid_p, c_master
     except Exception as e:
-        st.error(
-            "⚠️ 初始化失敗，請確認管理表權限與 `admin_registry_id` 設定是否正確。\n"
-            f"錯誤訊息：{e}"
-        )
+        st.error(f"⚠️ 初始化失敗: {e}")
         return "ADMIN", {}, {}
 
 # ==========================================
@@ -376,7 +357,8 @@ with tab_main:
                     st.markdown("#### ✏️ 資料編輯")
                     
                     # 使用 form 避免每次輸入都觸發 rerun
-                    with st.form(key=f"form_{uid}"):
+                    # 使用 idx 確保 key 唯一性
+                    with st.form(key=f"receipt_form_{idx}"):
                         new_shop = st.text_input("商店名稱", value=record['商店名稱'])
                         new_date = st.date_input("日期", value=datetime.strptime(record['日期'], "%Y-%m-%d").date())
                         new_amount = st.number_input("外幣金額", value=float(record['外幣金額']), format="%.2f")
