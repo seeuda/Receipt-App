@@ -1,6 +1,6 @@
 {
   "region_order": [
-    "亞洲 [東亞/東南亞]", "歐洲 [中歐]", "歐洲 [西歐]", "歐洲 [南歐]", "歐洲 [北歐]", "亞洲 [西南亞]", "美洲", "其他區域"
+    "歐洲 [南歐]", "亞洲 [東亞/東南亞]", "歐洲 [中歐]", "歐洲 [西歐]", "歐洲 [北歐]", "亞洲 [西南亞]", "美洲", "其他區域"
   ],
   "countries": {
     "tw": { "name": "台灣", "currency": "TWD", "region": "亞洲 [東亞/東南亞]", "priority": 10 },
@@ -12,7 +12,7 @@
     "my": { "name": "馬來西亞", "currency": "MYR", "region": "亞洲 [東亞/東南亞]", "priority": 10 },
     "sg": { "name": "新加坡", "currency": "SGD", "region": "亞洲 [東亞/東南亞]", "priority": 10 },
     "id": { "name": "印尼", "currency": "IDR", "region": "亞洲 [東亞/東南亞]", "priority": 10 },
-    "de": { "name": "德國", "currency": "EUR", "region": "歐洲 [中歐]", "priority": 10, "decimal_hint": "," },
+    "de": { "name": "德國", "currency": "EUR", "region": "歐洲 [中歐]", "priority": 5, "decimal_hint": "," },
     "at": { "name": "奧地利", "currency": "EUR", "region": "歐洲 [中歐]", "priority": 1, "decimal_hint": "," },
     "ch": { "name": "瑞士", "currency": "CHF", "region": "歐洲 [中歐]", "priority": 10 },
     "cz": { "name": "捷克", "currency": "CZK", "region": "歐洲 [中歐]", "priority": 1, "decimal_hint": "," },
