@@ -135,8 +135,11 @@ def run_vlm_scan(api_key, image_bytes, year, country_info):
 
 JSON 格式：{"shop":"店名","amount":數字,"date":"YYYY-MM-DD","currency":"幣別","items":"品項"}"""
 
+        # 使用 Gemini 1.5 Flash 避免 2.5 Flash 的 Thinking Tokens 高額費用
+        # Gemini 2.5 Flash 會產生大量內部推理 tokens（Thinking Tokens）
+        # 導致單張收據可能消耗 20,000+ tokens（而非預期的 600 tokens）
         model = genai.GenerativeModel(
-            model_name='models/gemini-2.5-flash',
+            model_name='models/gemini-1.5-flash',  # 改用 1.5 Flash（無 Thinking 成本）
             system_instruction=system_instruction
         )
         
