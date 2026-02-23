@@ -302,7 +302,9 @@ with tab_main:
                         
                         res = run_vlm_scan(active_key, img_bytes, target_year, target_country)
                         if res:
-                            uid = hashlib.md5(img_bytes + f_user.encode()).hexdigest()[:12]
+                            # UID 只依據圖片內容（不包含使用者名稱）
+                            # 確保同一張照片無論誰上傳都是相同 UID
+                            uid = hashlib.md5(img_bytes).hexdigest()[:12]
                             
                             # 確保日期格式正確
                             try:
@@ -312,7 +314,7 @@ with tab_main:
                             except:
                                 # 如果格式錯誤，使用當天日期
                                 receipt_date = datetime.now().strftime("%Y-%m-%d")
-                                st.warning(f"⚠️ 部分收據日期無法辨識，已設為今天：{receipt_date}")
+                                st.warning(f"⚠️ 收據日期格式錯誤，已設為今天：{receipt_date}")
                             
                             # 查詢匯率
                             exchange_rate = get_rate_by_date(res['currency'], receipt_date)
@@ -334,14 +336,32 @@ with tab_main:
                             images[uid] = base64.b64encode(img_bytes).decode()
                     
                     if batch:
-                        # 使用 UID 去重：只保留新的資料
-                        existing_uids = {record['UID'] for record in st.session_state['data']}
-                        new_records = [record for record in batch if record['UID'] not in existing_uids]
+                        # === 步驟 1: 批次內部去重（同一次上傳選到重複照片）===
+                        batch_uids = {}
+                        deduplicated_batch = []
+                        duplicate_count = 0
                         
+                        for record in batch:
+                            uid = record['UID']
+                            if uid not in batch_uids:
+                                batch_uids[uid] = record
+                                deduplicated_batch.append(record)
+                            else:
+                                # 同一次上傳內就有重複
+                                duplicate_count += 1
+                        
+                        if duplicate_count > 0:
+                            st.info(f"ℹ️ 過濾掉 {duplicate_count} 張重複照片（同一次上傳內）")
+                        
+                        # === 步驟 2: 與暫存區去重 ===
+                        existing_uids = {record['UID'] for record in st.session_state['data']}
+                        new_records = [record for record in deduplicated_batch if record['UID'] not in existing_uids]
+                        
+                        # === 步驟 3: 更新或覆蓋暫存區 ===
                         if new_records:
-                            # 附加新資料（而非覆蓋）
+                            # 附加新資料
                             st.session_state['data'].extend(new_records)
-                            # 更新圖片
+                            # 更新圖片（使用 update 會覆蓋同 UID 的舊圖）
                             st.session_state['uploaded_images'].update(images)
                             st.success(f"✅ 新增 {len(new_records)} 筆辨識結果")
                         else:
@@ -469,6 +489,8 @@ with tab_main:
                         t_base = int(r['台幣金額'])
                         t_total = round(t_base * (1 + fee_rate), 0)
 
+                        # 準備要寫入的資料（A~L 欄）
+                        # 注意：時間戳和使用者會更新為當前上傳者
                         row_values_A_to_L = [
                             now, f_user, r['商店名稱'], r['品項摘要'], r['日期'],
                             r['外幣金額'], r['幣別'], r['匯率'],
@@ -476,14 +498,15 @@ with tab_main:
                         ]
 
                         if uid in uid_to_row:
-                            # 已存在 → 覆蓋 A~L（保留 UID）
+                            # UID 已存在 → 覆蓋該列的 A~L 欄（保留 M 欄 UID）
+                            # 效果：同一張收據的新辨識結果會覆蓋舊資料
                             rownum = uid_to_row[uid]
                             updates.append({
                                 "range": f"A{rownum}:L{rownum}",
                                 "values": [row_values_A_to_L]
                             })
                         else:
-                            # 不存在 → 新增
+                            # UID 不存在 → 新增一列（包含 UID）
                             rows_to_append.append(row_values_A_to_L + [uid])
 
                     # === 批次執行 ===
