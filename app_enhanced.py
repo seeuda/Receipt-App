@@ -279,7 +279,15 @@ with tab_main:
             f_user = st.text_input("確認姓名", value="") if u_sel == "其他人員" else u_sel
 
         with c3:
-            fee_rate = st.number_input("手續費率 (%)", value=1.5) / 100
+            # 支付方式選擇
+            payment_method = st.selectbox("💳 支付方式", ["信用卡", "現金"])
+            
+            if payment_method == "信用卡":
+                fee_rate = st.number_input("手續費率 (%)", value=1.5, min_value=0.0, max_value=10.0, step=0.1) / 100
+                st.caption("💡 信用卡海外交易手續費")
+            else:  # 現金
+                fee_rate = 0.0  # 現金無手續費
+                st.caption("💵 現金兌換（可於辨識後手動調整匯率）")
 
         st.divider()
         
@@ -332,7 +340,8 @@ with tab_main:
                                 "匯率": round(exchange_rate, 3),
                                 "台幣金額": twd_amount,
                                 "品項摘要": res['items'],
-                                "備註": ""
+                                "備註": "",
+                                "支付方式": payment_method  # 加入支付方式
                             })
                             
                             # 儲存圖片
@@ -418,13 +427,45 @@ with tab_main:
                         new_date = st.date_input("日期", value=date_value)
                         new_amount = st.number_input("外幣金額", value=float(record['外幣金額']), format="%.2f")
                         new_currency = st.text_input("幣別", value=record['幣別'])
-                        new_rate = st.number_input("💱 匯率", value=float(record['匯率']), format="%.3f", step=0.001, help="可手動修改匯率")
+                        
+                        # 支付方式選擇
+                        current_payment = record.get('支付方式', '信用卡')  # 預設信用卡
+                        new_payment = st.selectbox(
+                            "💳 支付方式", 
+                            ["信用卡", "現金"],
+                            index=0 if current_payment == "信用卡" else 1,
+                            key=f"payment_{idx}"
+                        )
+                        
+                        # 匯率輸入（現金可手動輸入，信用卡自動查詢）
+                        if new_payment == "現金":
+                            new_rate = st.number_input(
+                                "💱 實際兌換匯率", 
+                                value=float(record['匯率']), 
+                                format="%.4f", 
+                                step=0.0001,
+                                help="現金兌換時的實際匯率（可手動輸入）"
+                            )
+                        else:
+                            new_rate = st.number_input(
+                                "💱 匯率", 
+                                value=float(record['匯率']), 
+                                format="%.3f", 
+                                step=0.001,
+                                help="信用卡匯率（可微調）"
+                            )
+                        
                         new_items = st.text_area("品項摘要", value=record['品項摘要'], height=100)
                         new_note = st.text_input("備註", value=record.get('備註', ''))
                         
                         # 即時計算台幣金額
                         calculated_twd = round(new_amount * new_rate, 0)
-                        st.info(f"💰 台幣金額：NT$ {calculated_twd:,.0f}")
+                        
+                        # 顯示資訊（根據支付方式）
+                        if new_payment == "現金":
+                            st.info(f"💵 現金兌換 | 💰 台幣：NT$ {calculated_twd:,.0f}")
+                        else:
+                            st.info(f"💳 信用卡 | 💰 台幣：NT$ {calculated_twd:,.0f}")
                         
                         # 提交按鈕
                         submitted = st.form_submit_button("✅ 更新此筆資料", use_container_width=True)
@@ -435,6 +476,7 @@ with tab_main:
                             amount_changed = new_amount != record['外幣金額']
                             currency_changed = new_currency != record['幣別']
                             rate_changed = new_rate != record['匯率']
+                            payment_changed = new_payment != record.get('支付方式', '信用卡')
                             
                             # 更新資料
                             st.session_state['data'][idx]['商店名稱'] = new_shop
@@ -443,22 +485,29 @@ with tab_main:
                             st.session_state['data'][idx]['幣別'] = new_currency
                             st.session_state['data'][idx]['品項摘要'] = new_items
                             st.session_state['data'][idx]['備註'] = new_note
+                            st.session_state['data'][idx]['支付方式'] = new_payment
                             
                             # 匯率邏輯：
-                            # 1. 如果使用者手動修改匯率，優先使用使用者的值
-                            # 2. 如果只是修改日期/幣別，自動查詢新匯率
-                            if rate_changed:
-                                # 使用者手動修改匯率，使用使用者輸入的值
-                                st.session_state['data'][idx]['匯率'] = round(new_rate, 3)
+                            # 1. 現金模式：使用者手動輸入匯率優先
+                            # 2. 信用卡模式：如果使用者手動改匯率，優先使用；否則日期/幣別變更時自動查詢
+                            if new_payment == "現金":
+                                # 現金模式：直接使用手動輸入的匯率
+                                st.session_state['data'][idx]['匯率'] = round(new_rate, 4)
                                 st.session_state['data'][idx]['台幣金額'] = round(new_amount * new_rate, 0)
-                            elif date_changed or currency_changed:
-                                # 日期或幣別變更，自動查詢新匯率
-                                auto_rate = get_rate_by_date(new_currency, new_date.strftime("%Y-%m-%d"))
-                                st.session_state['data'][idx]['匯率'] = round(auto_rate, 3)
-                                st.session_state['data'][idx]['台幣金額'] = round(new_amount * auto_rate, 0)
-                            elif amount_changed:
-                                # 只修改金額，使用原匯率重新計算
-                                st.session_state['data'][idx]['台幣金額'] = round(new_amount * new_rate, 0)
+                            else:
+                                # 信用卡模式
+                                if rate_changed:
+                                    # 使用者手動修改匯率
+                                    st.session_state['data'][idx]['匯率'] = round(new_rate, 3)
+                                    st.session_state['data'][idx]['台幣金額'] = round(new_amount * new_rate, 0)
+                                elif date_changed or currency_changed:
+                                    # 日期或幣別變更，自動查詢新匯率
+                                    auto_rate = get_rate_by_date(new_currency, new_date.strftime("%Y-%m-%d"))
+                                    st.session_state['data'][idx]['匯率'] = round(auto_rate, 3)
+                                    st.session_state['data'][idx]['台幣金額'] = round(new_amount * auto_rate, 0)
+                                elif amount_changed:
+                                    # 只修改金額，保持原匯率
+                                    st.session_state['data'][idx]['台幣金額'] = round(new_amount * new_rate, 0)
                             
                             st.success("✅ 資料已更新！")
                             st.rerun()
@@ -526,12 +575,25 @@ with tab_main:
                         msg.append(f"新增 {len(rows_to_append)} 筆")
 
                     st.success(f"✅ 同步完成！{' / '.join(msg)}")
-                    st.session_state['data'] = []
-                    st.session_state['uploaded_images'] = {}
-                    st.rerun()
-
+                    
+                    # 同步成功後提示，但不自動清空（讓使用者決定）
+                    st.info("💡 同步完成後，暫存區資料仍保留。如需清空，請點擊下方按鈕。")
+                    
                 except Exception as e:
                     st.error(f"同步錯誤: {e}")
+        
+        # 清空暫存區按鈕（獨立於同步）
+        if st.session_state['data']:
+            st.divider()
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🗑️ 清空暫存區", type="secondary", use_container_width=True):
+                    st.session_state['data'] = []
+                    st.session_state['uploaded_images'] = {}
+                    st.success("✅ 暫存區已清空")
+                    st.rerun()
+            with col2:
+                st.caption("⚠️ 清空前請確認已同步至雲端")
 
 with tab_reg:
     st.header("🛠️ 專案註冊")
