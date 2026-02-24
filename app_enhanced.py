@@ -127,13 +127,10 @@ def run_vlm_scan(api_key, image_bytes, year, country_info):
     try:
         genai.configure(api_key=api_key)
         
-        # === 優化 1: 使用 System Instruction 減少重複 Prompt Token ===
-        system_instruction = """你是專業審計師。任務：
-1. 精確提取收據關鍵資訊
-2. 回傳純 JSON（無 markdown 格式）
-3. 日期格式必須是 YYYY-MM-DD
-
-JSON 格式：{"shop":"店名","amount":數字,"date":"YYYY-MM-DD","currency":"幣別","items":"品項"}"""
+        # === 優化 1: 簡化 System Instruction 避免 Thinking Mode ===
+        # 移除「專業審計師」等會觸發深度推理的角色設定
+        # 使用簡短直接的指令
+        system_instruction = "Extract receipt info as JSON: shop, amount, date (YYYY-MM-DD), currency, items."
 
         # 使用 Gemini 1.5 Flash 避免 2.5 Flash 的 Thinking Tokens 高額費用
         # Gemini 2.5 Flash 會產生大量內部推理 tokens（Thinking Tokens）
@@ -153,15 +150,14 @@ JSON 格式：{"shop":"店名","amount":數字,"date":"YYYY-MM-DD","currency":"�
             new_size = tuple(int(dim * ratio) for dim in img.size)
             img = img.resize(new_size, Image.Resampling.LANCZOS)
         
-        # === 優化 3: 簡化 Prompt（關鍵資訊已在 System Instruction）===
+        # === 優化 3: 極簡 Prompt 避免 Thinking ===
         hint = country_info.get("decimal_hint", ".")
-        prompt = f"""收據分析參數：
-- 年度：{year}（用於判斷日期格式，如 DD/MM/YY → YYYY-MM-DD）
-- 國家：{country_info['name']}
-- 預設幣別：{country_info['currency']}
-- 小數點：'{hint}'
+        prompt = f"""Country: {country_info['name']}
+Currency: {country_info['currency']}
+Year: {year}
+Decimal: '{hint}'
 
-日期規則：若看到 "21/06/25" 且 21≤31，判斷為 DD/MM/YY，結合年度 {year} 推斷完整日期。"""
+Return JSON only."""
         
         response = model.generate_content([prompt, img])
         
@@ -287,7 +283,28 @@ with tab_main:
                 st.caption("💡 信用卡海外交易手續費")
             else:  # 現金
                 fee_rate = 0.0  # 現金無手續費
-                st.caption("💵 現金兌換（可於辨識後手動調整匯率）")
+                
+                # 現金模式：提供預設匯率輸入
+                # 使用 session_state 保存，頁面重整前有效
+                if 'default_cash_rate' not in st.session_state:
+                    st.session_state['default_cash_rate'] = 0.0
+                
+                default_rate = st.number_input(
+                    "💵 您的現金兌換匯率", 
+                    value=st.session_state['default_cash_rate'],
+                    min_value=0.0,
+                    format="%.4f",
+                    step=0.0001,
+                    help="輸入實際兌換匯率，辨識時會自動套用"
+                )
+                
+                # 儲存到 session_state
+                st.session_state['default_cash_rate'] = default_rate
+                
+                if default_rate > 0:
+                    st.caption(f"✓ 已設定預設匯率：{default_rate:.4f}")
+                else:
+                    st.caption("⚠️ 請先輸入兌換匯率")
 
         st.divider()
         
@@ -327,8 +344,14 @@ with tab_main:
                                 receipt_date = datetime.now().strftime("%Y-%m-%d")
                                 st.warning(f"⚠️ 收據日期格式錯誤，已設為今天：{receipt_date}")
                             
-                            # 查詢匯率
-                            exchange_rate = get_rate_by_date(res['currency'], receipt_date)
+                            # 查詢匯率（根據支付方式）
+                            if payment_method == "現金" and st.session_state.get('default_cash_rate', 0) > 0:
+                                # 現金模式且有設定預設匯率 → 使用預設匯率
+                                exchange_rate = st.session_state['default_cash_rate']
+                            else:
+                                # 信用卡模式或現金無預設 → 自動查詢
+                                exchange_rate = get_rate_by_date(res['currency'], receipt_date)
+                            
                             twd_amount = round(res['amount'] * exchange_rate, 0)
                             
                             batch.append({
