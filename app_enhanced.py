@@ -591,7 +591,14 @@ with tab_main:
                     # 不能依賴 get_all_values()/col_values 的索引，空白列可能被壓縮造成 row offset
                     uid_to_row = {}
                     duplicated_uids = set()
-                    for cell in wks.findall(re.compile(r".+"), in_column=13):
+
+                    # 先嘗試 findall（最快），若舊版/異常 sheet 在空 M 欄觸發 IndexError，改用 range 後備
+                    try:
+                        uid_cells = wks.findall(re.compile(r".+"), in_column=13)
+                    except IndexError:
+                        uid_cells = wks.range(f"M1:M{wks.row_count}")
+
+                    for cell in uid_cells:
                         uid = str(cell.value).strip()
                         if not uid or uid == "系統唯一識別碼 (UID)":
                             continue
