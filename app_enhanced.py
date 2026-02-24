@@ -587,13 +587,19 @@ with tab_main:
                     gc = get_gc()
                     wks = gc.open_by_key(tid).get_worksheet(0)
         
-                    # === 建立 雲端 UID -> 列號 對照表（保留實際列號，避免 row offset）===
-                    # 不能使用 col_values(13) + enumerate，因為前置空白列可能被跳過，導致列號錯位
-                    all_rows = wks.get_all_values()
+                    # === 建立 雲端 UID -> 列號 對照表（使用 findall 取得真實列號）===
+                    # 不能依賴 get_all_values()/col_values 的索引，空白列可能被壓縮造成 row offset
                     uid_to_row = {}
                     duplicated_uids = set()
-                    for row_idx, row in enumerate(all_rows, start=1):
-                        uid = str(row[12]).strip() if len(row) >= 13 else ""
+
+                    # 先嘗試 findall（最快），若舊版/異常 sheet 在空 M 欄觸發 IndexError，改用 range 後備
+                    try:
+                        uid_cells = wks.findall(re.compile(r".+"), in_column=13)
+                    except IndexError:
+                        uid_cells = wks.range(f"M1:M{wks.row_count}")
+
+                    for cell in uid_cells:
+                        uid = str(cell.value).strip()
                         if not uid or uid == "系統唯一識別碼 (UID)":
                             continue
 
@@ -601,7 +607,7 @@ with tab_main:
                             duplicated_uids.add(uid)
                             continue
 
-                        uid_to_row[uid] = row_idx
+                        uid_to_row[uid] = cell.row
 
                     if duplicated_uids:
                         st.warning(f"⚠️ 發現 {len(duplicated_uids)} 個重複 UID，將以最早列號進行覆蓋更新")
@@ -611,8 +617,13 @@ with tab_main:
                     updates = []         # 要覆蓋的
                     rows_to_append = []  # 要新增的
 
+                    # 同一次同步中若有重複 UID，採最後一筆（通常是最新編輯）
+                    records_by_uid = {}
+                    for record in st.session_state['data']:
+                        records_by_uid[str(record['UID']).strip()] = record
+
                     # === 逐筆檢查 ===
-                    for r in st.session_state['data']:
+                    for r in records_by_uid.values():
                         uid = str(r['UID']).strip()
 
                         t_base = int(r['台幣金額'])
