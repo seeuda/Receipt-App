@@ -132,11 +132,10 @@ def run_vlm_scan(api_key, image_bytes, year, country_info):
         # 使用簡短直接的指令
         system_instruction = "Extract receipt info as JSON: shop, amount, date (YYYY-MM-DD), currency, items."
 
-        # 使用 Gemini 1.5 Flash 避免 2.5 Flash 的 Thinking Tokens 高額費用
         # Gemini 2.5 Flash 會產生大量內部推理 tokens（Thinking Tokens）
         # 導致單張收據可能消耗 20,000+ tokens（而非預期的 600 tokens）
         model = genai.GenerativeModel(
-            model_name='models/gemini-1.5-flash',  # 改用 1.5 Flash（無 Thinking 成本）
+            model_name='models/gemini-2.5-flash',  #  1.5 Flash為無效指令，暫用2.5
             system_instruction=system_instruction
         )
         
