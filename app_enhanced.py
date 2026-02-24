@@ -587,13 +587,24 @@ with tab_main:
                     gc = get_gc()
                     wks = gc.open_by_key(tid).get_worksheet(0)
         
-                    # === 建立 雲端 UID -> 列號 對照表 ===
-                    uid_col = wks.col_values(13)  # M 欄
+                    # === 建立 雲端 UID -> 列號 對照表（保留實際列號，避免 row offset）===
+                    # 不能使用 col_values(13) + enumerate，因為前置空白列可能被跳過，導致列號錯位
+                    all_rows = wks.get_all_values()
                     uid_to_row = {}
-                    for idx, uid in enumerate(uid_col, start=1):
-                        uid = str(uid).strip()
-                        if uid:
-                            uid_to_row[uid] = idx
+                    duplicated_uids = set()
+                    for row_idx, row in enumerate(all_rows, start=1):
+                        uid = str(row[12]).strip() if len(row) >= 13 else ""
+                        if not uid or uid == "系統唯一識別碼 (UID)":
+                            continue
+
+                        if uid in uid_to_row:
+                            duplicated_uids.add(uid)
+                            continue
+
+                        uid_to_row[uid] = row_idx
+
+                    if duplicated_uids:
+                        st.warning(f"⚠️ 發現 {len(duplicated_uids)} 個重複 UID，將以最早列號進行覆蓋更新")
 
                     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
