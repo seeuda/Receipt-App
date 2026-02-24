@@ -181,6 +181,50 @@ Return JSON only."""
         st.session_state['vlm_error'] = f"{type(e).__name__}: {str(e)}"
         return None
 
+
+def normalize_items(items_value):
+    """將 VLM 回傳的品項資料轉為可寫入 Google Sheets 的純文字。"""
+    if isinstance(items_value, str):
+        return items_value.strip() or "無"
+
+    if isinstance(items_value, list):
+        normalized_items = []
+        for item in items_value:
+            if isinstance(item, str):
+                text = item.strip()
+                if text:
+                    normalized_items.append(text)
+            elif isinstance(item, dict):
+                desc = str(item.get("description", "")).strip()
+                qty = item.get("quantity")
+                unit_price = item.get("unit_price")
+                total_price = item.get("total_price")
+
+                detail_parts = [part for part in [desc] if part]
+                if qty not in (None, ""):
+                    detail_parts.append(f"x{qty}")
+                if unit_price not in (None, ""):
+                    detail_parts.append(f"單價:{unit_price}")
+                if total_price not in (None, ""):
+                    detail_parts.append(f"小計:{total_price}")
+
+                if detail_parts:
+                    normalized_items.append(" ".join(detail_parts))
+
+        return "、".join(normalized_items) if normalized_items else "無"
+
+    if isinstance(items_value, dict):
+        return json.dumps(items_value, ensure_ascii=False)
+
+    return str(items_value) if items_value not in (None, "") else "無"
+
+
+def to_sheet_cell(value):
+    """避免寫入 list/dict 造成 Google Sheets API 400。"""
+    if isinstance(value, (list, dict)):
+        return json.dumps(value, ensure_ascii=False)
+    return value
+
 # ==========================================
 # III. UI 佈局 (MVC 架構)
 # ==========================================
@@ -361,7 +405,7 @@ with tab_main:
                                 "幣別": res['currency'],
                                 "匯率": round(exchange_rate, 3),
                                 "台幣金額": twd_amount,
-                                "品項摘要": res['items'],
+                                "品項摘要": normalize_items(res.get('items', "無")),
                                 "備註": "",
                                 "支付方式": payment_method  # 加入支付方式
                             })
@@ -543,13 +587,24 @@ with tab_main:
                     gc = get_gc()
                     wks = gc.open_by_key(tid).get_worksheet(0)
         
-                    # === 建立 雲端 UID -> 列號 對照表 ===
-                    uid_col = wks.col_values(13)  # M 欄
+                    # === 建立 雲端 UID -> 列號 對照表（保留實際列號，避免 row offset）===
+                    # 不能使用 col_values(13) + enumerate，因為前置空白列可能被跳過，導致列號錯位
+                    all_rows = wks.get_all_values()
                     uid_to_row = {}
-                    for idx, uid in enumerate(uid_col, start=1):
-                        uid = str(uid).strip()
-                        if uid:
-                            uid_to_row[uid] = idx
+                    duplicated_uids = set()
+                    for row_idx, row in enumerate(all_rows, start=1):
+                        uid = str(row[12]).strip() if len(row) >= 13 else ""
+                        if not uid or uid == "系統唯一識別碼 (UID)":
+                            continue
+
+                        if uid in uid_to_row:
+                            duplicated_uids.add(uid)
+                            continue
+
+                        uid_to_row[uid] = row_idx
+
+                    if duplicated_uids:
+                        st.warning(f"⚠️ 發現 {len(duplicated_uids)} 個重複 UID，將以最早列號進行覆蓋更新")
 
                     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -566,9 +621,9 @@ with tab_main:
                         # 準備要寫入的資料（A~L 欄）
                         # 注意：時間戳和使用者會更新為當前上傳者
                         row_values_A_to_L = [
-                            now, f_user, r['商店名稱'], r['品項摘要'], r['日期'],
-                            r['外幣金額'], r['幣別'], r['匯率'],
-                            t_base, t_total - t_base, t_total, r['備註']
+                            to_sheet_cell(now), to_sheet_cell(f_user), to_sheet_cell(r['商店名稱']), to_sheet_cell(r['品項摘要']), to_sheet_cell(r['日期']),
+                            to_sheet_cell(r['外幣金額']), to_sheet_cell(r['幣別']), to_sheet_cell(r['匯率']),
+                            to_sheet_cell(t_base), to_sheet_cell(t_total - t_base), to_sheet_cell(t_total), to_sheet_cell(r['備註'])
                         ]
 
                         if uid in uid_to_row:
