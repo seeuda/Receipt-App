@@ -84,6 +84,74 @@ def normalize_items(items_value):
     except:
         return "無"
 
+def normalize_receipt_date(date_value, fallback_year=None):
+    """將模型回傳日期正規化為 YYYY-MM-DD，失敗時回傳 None。"""
+    if date_value is None:
+        return None
+
+    if isinstance(date_value, datetime):
+        return date_value.strftime("%Y-%m-%d")
+
+    if hasattr(date_value, "strftime"):
+        try:
+            return date_value.strftime("%Y-%m-%d")
+        except:
+            pass
+
+    text = str(date_value).strip()
+    if not text:
+        return None
+
+    # 1) 先嘗試常見日期格式
+    candidate_formats = [
+        "%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d",
+        "%d-%m-%Y", "%d/%m/%Y", "%d.%m.%Y",
+        "%m-%d-%Y", "%m/%d/%Y", "%m.%d.%Y",
+        "%y-%m-%d", "%y/%m/%d",
+        "%d-%m-%y", "%d/%m/%y",
+        "%m-%d-%y", "%m/%d/%y",
+    ]
+    for fmt in candidate_formats:
+        try:
+            parsed = datetime.strptime(text, fmt)
+            return parsed.strftime("%Y-%m-%d")
+        except:
+            continue
+
+    # 2) 從混雜字串抓出數字日期（如 2024年3月5日）
+    digits = re.findall(r"\d+", text)
+    if len(digits) >= 3:
+        y, m, d = None, None, None
+
+        # 有四位數年份優先
+        for i, token in enumerate(digits[:4]):
+            if len(token) == 4:
+                y = int(token)
+                rest = [int(x) for idx, x in enumerate(digits[:4]) if idx != i]
+                if len(rest) >= 2:
+                    m, d = rest[0], rest[1]
+                break
+
+        # 沒有四位數年份，使用 fallback_year
+        if y is None and fallback_year is not None:
+            y = int(fallback_year)
+            first, second = int(digits[0]), int(digits[1])
+            if first > 12 and second <= 12:
+                d, m = first, second
+            elif second > 12 and first <= 12:
+                m, d = first, second
+            else:
+                m, d = first, second
+
+        if all(v is not None for v in (y, m, d)):
+            try:
+                parsed = datetime(int(y), int(m), int(d))
+                return parsed.strftime("%Y-%m-%d")
+            except:
+                pass
+
+    return None
+
 def get_rate_by_date(currency_code, target_date):
     if currency_code in ("TWD", "NTD"):
         return 1.0
@@ -226,6 +294,9 @@ JSON: shop, amount, YYYY-MM-DD, currency, items"""
         
         # 後處理：驗證日期合理性
         try:
+            normalized_date = normalize_receipt_date(result.get('date'), fallback_year=year)
+            if normalized_date:
+                result['date'] = normalized_date
             date_str = result['date']
             parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
             
@@ -405,11 +476,8 @@ with tab_main:
                             uid = hashlib.md5(img_bytes).hexdigest()[:12]
                             
                             # 確保日期格式正確
-                            try:
-                                # 驗證日期格式
-                                receipt_date = res['date']
-                                datetime.strptime(receipt_date, "%Y-%m-%d")
-                            except:
+                            receipt_date = normalize_receipt_date(res.get('date'), fallback_year=target_year)
+                            if not receipt_date:
                                 # 如果格式錯誤，使用當天日期
                                 receipt_date = datetime.now().strftime("%Y-%m-%d")
                                 st.warning(f"⚠️ 收據日期格式錯誤，已設為今天：{receipt_date}")
@@ -615,12 +683,12 @@ with tab_main:
                     wks = gc.open_by_key(tid).get_worksheet(0)
         
                     # === 建立 雲端 UID -> 列號 對照表 ===
-                    uid_col = wks.col_values(13)  # M 欄
+                    all_rows = wks.get_all_values()
                     uid_to_row = {}
-                    for idx, uid in enumerate(uid_col, start=1):
-                        uid = str(uid).strip()
+                    for row_idx, row in enumerate(all_rows, start=1):
+                        uid = str(row[12]).strip() if len(row) >= 13 else ""
                         if uid:
-                            uid_to_row[uid] = idx
+                            uid_to_row[uid] = row_idx
 
                     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -659,6 +727,9 @@ with tab_main:
                         wks.batch_update(updates, value_input_option='USER_ENTERED')
 
                     if rows_to_append:
+                        required_rows = len(all_rows) + len(rows_to_append)
+                        if required_rows > wks.row_count:
+                            wks.add_rows(required_rows - wks.row_count)
                         wks.append_rows(rows_to_append, value_input_option='USER_ENTERED')
 
                     msg = []
