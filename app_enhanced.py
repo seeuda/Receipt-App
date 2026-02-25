@@ -17,6 +17,73 @@ import re
 REGISTRY_ID = "1rPQlGHtvx6M630vnZ_FANMRyR_EnMrzje85V3mZ2H0M"
 TEMPLATE_URL = "https://docs.google.com/spreadsheets/d/15kD4ZMYEZvN3unbIhkH8b69KAVpiiKP-TA4q3pYJ86k/edit"
 
+def normalize_items(items_value):
+    """
+    將 VLM 回傳的品項資料轉為可寫入 Google Sheets 的純文字。
+    支援：string, list, dict 等格式
+    """
+    # 如果已經是字串，直接返回
+    if isinstance(items_value, str):
+        return items_value.strip() or "無"
+    
+    # 如果是列表
+    if isinstance(items_value, list):
+        normalized_items = []
+        for item in items_value:
+            if isinstance(item, str):
+                # 純字串項目
+                text = item.strip()
+                if text:
+                    normalized_items.append(text)
+            elif isinstance(item, dict):
+                # 字典項目（包含描述、數量、價格等）
+                desc = str(item.get("description", "")).strip()
+                qty = item.get("quantity")
+                price = item.get("price")
+                unit_price = item.get("unit_price")
+                total_price = item.get("total_price")
+                
+                # 組合成可讀文字
+                parts = []
+                if desc:
+                    parts.append(desc)
+                if qty not in (None, ""):
+                    parts.append(f"x{qty}")
+                if price not in (None, ""):
+                    parts.append(f"€{price}")
+                elif unit_price not in (None, ""):
+                    parts.append(f"單價:€{unit_price}")
+                if total_price not in (None, "") and total_price != price:
+                    parts.append(f"小計:€{total_price}")
+                
+                if parts:
+                    normalized_items.append(" ".join(parts))
+        
+        # 用分號連接所有項目
+        return "; ".join(normalized_items) if normalized_items else "無"
+    
+    # 如果是字典（單一品項）
+    if isinstance(items_value, dict):
+        desc = str(items_value.get("description", "")).strip()
+        qty = items_value.get("quantity")
+        price = items_value.get("price")
+        
+        parts = []
+        if desc:
+            parts.append(desc)
+        if qty not in (None, ""):
+            parts.append(f"x{qty}")
+        if price not in (None, ""):
+            parts.append(f"€{price}")
+        
+        return " ".join(parts) if parts else "無"
+    
+    # 其他類型：轉字串
+    try:
+        return str(items_value).strip() or "無"
+    except:
+        return "無"
+
 def get_rate_by_date(currency_code, target_date):
     if currency_code in ("TWD", "NTD"):
         return 1.0
@@ -365,7 +432,7 @@ with tab_main:
                                 "幣別": res['currency'],
                                 "匯率": round(exchange_rate, 4) if payment_method == "現金" else round(exchange_rate, 3),
                                 "台幣金額": twd_amount,
-                                "品項摘要": res['items'],
+                                "品項摘要": normalize_items(res.get('items', '無')),  # 使用 normalize_items 處理
                                 "備註": "",
                                 "支付方式": payment_method  # 加入支付方式
                             })
