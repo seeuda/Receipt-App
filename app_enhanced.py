@@ -123,20 +123,16 @@ def test_api_connection(api_key):
         return False, str(e)
 
 def run_vlm_scan(api_key, image_bytes, year, country_info):
-    """VLM 辨識：優化版 - 降低 Token 消耗"""
+    """VLM 辨識：極簡版 - 完全避免 Thinking Mode"""
     try:
         genai.configure(api_key=api_key)
         
-        # === 優化 1: 簡化 System Instruction 避免 Thinking Mode ===
-        # 移除「專業審計師」等會觸發深度推理的角色設定
-        # 使用簡短直接的指令
-        system_instruction = "Extract receipt info as JSON: shop, amount, date (YYYY-MM-DD), currency, items."
-
-        # Gemini 2.5 Flash 會產生大量內部推理 tokens（Thinking Tokens）
-        # 導致單張收據可能消耗 20,000+ tokens（而非預期的 600 tokens）
+        # === 關鍵優化：完全移除 System Instruction ===
+        # 任何 System Instruction 都會觸發 Thinking
+        # 必須使用純粹的圖片 + 超簡 Prompt
         model = genai.GenerativeModel(
-            model_name='models/gemini-2.5-flash',  #  1.5 Flash為無效指令，暫用2.5
-            system_instruction=system_instruction
+            model_name='models/gemini-2.5-flash'
+            # 完全不設定 system_instruction
         )
         
         # === 優化 2: 壓縮圖片以降低 Visual Token 消耗 ===
@@ -149,14 +145,12 @@ def run_vlm_scan(api_key, image_bytes, year, country_info):
             new_size = tuple(int(dim * ratio) for dim in img.size)
             img = img.resize(new_size, Image.Resampling.LANCZOS)
         
-        # === 優化 3: 極簡 Prompt 避免 Thinking ===
-        hint = country_info.get("decimal_hint", ".")
-        prompt = f"""Country: {country_info['name']}
-Currency: {country_info['currency']}
-Year: {year}
-Decimal: '{hint}'
-
-Return JSON only."""
+        # === 優化 3: 超極簡 Prompt - 只給必要上下文 ===
+        # 移除所有可能觸發 Thinking 的詞彙：
+        # ❌ "Extract", "Return", "Country", "Decimal" 等
+        # ✅ 只給幣別和年份
+        prompt = f"""{country_info['currency']} {year}
+JSON: shop, amount, YYYY-MM-DD, currency, items"""
         
         response = model.generate_content([prompt, img])
         
@@ -180,50 +174,6 @@ Return JSON only."""
     except Exception as e:
         st.session_state['vlm_error'] = f"{type(e).__name__}: {str(e)}"
         return None
-
-
-def normalize_items(items_value):
-    """將 VLM 回傳的品項資料轉為可寫入 Google Sheets 的純文字。"""
-    if isinstance(items_value, str):
-        return items_value.strip() or "無"
-
-    if isinstance(items_value, list):
-        normalized_items = []
-        for item in items_value:
-            if isinstance(item, str):
-                text = item.strip()
-                if text:
-                    normalized_items.append(text)
-            elif isinstance(item, dict):
-                desc = str(item.get("description", "")).strip()
-                qty = item.get("quantity")
-                unit_price = item.get("unit_price")
-                total_price = item.get("total_price")
-
-                detail_parts = [part for part in [desc] if part]
-                if qty not in (None, ""):
-                    detail_parts.append(f"x{qty}")
-                if unit_price not in (None, ""):
-                    detail_parts.append(f"單價:{unit_price}")
-                if total_price not in (None, ""):
-                    detail_parts.append(f"小計:{total_price}")
-
-                if detail_parts:
-                    normalized_items.append(" ".join(detail_parts))
-
-        return "、".join(normalized_items) if normalized_items else "無"
-
-    if isinstance(items_value, dict):
-        return json.dumps(items_value, ensure_ascii=False)
-
-    return str(items_value) if items_value not in (None, "") else "無"
-
-
-def to_sheet_cell(value):
-    """避免寫入 list/dict 造成 Google Sheets API 400。"""
-    if isinstance(value, (list, dict)):
-        return json.dumps(value, ensure_ascii=False)
-    return value
 
 # ==========================================
 # III. UI 佈局 (MVC 架構)
@@ -278,6 +228,8 @@ with st.sidebar:
         st.session_state['data'] = []
         st.session_state['uploaded_images'] = {}
         st.session_state['vlm_error'] = None
+        if 'uploader_key' in st.session_state:
+            st.session_state['uploader_key'] += 1  # 重置檔案上傳器
         st.rerun()
 
 # --- 主畫面頁籤 ---
@@ -351,8 +303,16 @@ with tab_main:
 
         st.divider()
         
-        # 批次上傳
-        files = st.file_uploader("批次上傳單據照片", accept_multiple_files=True, type=['jpg','png','jpeg'])
+        # 批次上傳（使用動態 key 來支援清空）
+        if 'uploader_key' not in st.session_state:
+            st.session_state['uploader_key'] = 0
+        
+        files = st.file_uploader(
+            "批次上傳單據照片", 
+            accept_multiple_files=True, 
+            type=['jpg','png','jpeg'],
+            key=f"file_uploader_{st.session_state['uploader_key']}"
+        )
 
         # AI 辨識按鈕
         if st.button("⚡ 啟動 AI 自動偵察", type="primary", use_container_width=True):
@@ -403,9 +363,9 @@ with tab_main:
                                 "日期": receipt_date,  # 使用驗證過的日期
                                 "外幣金額": res['amount'],
                                 "幣別": res['currency'],
-                                "匯率": round(exchange_rate, 3),
+                                "匯率": round(exchange_rate, 4) if payment_method == "現金" else round(exchange_rate, 3),
                                 "台幣金額": twd_amount,
-                                "品項摘要": normalize_items(res.get('items', "無")),
+                                "品項摘要": res['items'],
                                 "備註": "",
                                 "支付方式": payment_method  # 加入支付方式
                             })
@@ -587,43 +547,21 @@ with tab_main:
                     gc = get_gc()
                     wks = gc.open_by_key(tid).get_worksheet(0)
         
-                    # === 建立 雲端 UID -> 列號 對照表（使用 findall 取得真實列號）===
-                    # 不能依賴 get_all_values()/col_values 的索引，空白列可能被壓縮造成 row offset
+                    # === 建立 雲端 UID -> 列號 對照表 ===
+                    uid_col = wks.col_values(13)  # M 欄
                     uid_to_row = {}
-                    duplicated_uids = set()
-
-                    # 先嘗試 findall（最快），若舊版/異常 sheet 在空 M 欄觸發 IndexError，改用 range 後備
-                    try:
-                        uid_cells = wks.findall(re.compile(r".+"), in_column=13)
-                    except IndexError:
-                        uid_cells = wks.range(f"M1:M{wks.row_count}")
-
-                    for cell in uid_cells:
-                        uid = str(cell.value).strip()
-                        if not uid or uid == "系統唯一識別碼 (UID)":
-                            continue
-
-                        if uid in uid_to_row:
-                            duplicated_uids.add(uid)
-                            continue
-
-                        uid_to_row[uid] = cell.row
-
-                    if duplicated_uids:
-                        st.warning(f"⚠️ 發現 {len(duplicated_uids)} 個重複 UID，將以最早列號進行覆蓋更新")
+                    for idx, uid in enumerate(uid_col, start=1):
+                        uid = str(uid).strip()
+                        if uid:
+                            uid_to_row[uid] = idx
 
                     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
                     updates = []         # 要覆蓋的
                     rows_to_append = []  # 要新增的
 
-                    # 同一次同步中若有重複 UID，採最後一筆（通常是最新編輯）
-                    records_by_uid = {}
-                    for record in st.session_state['data']:
-                        records_by_uid[str(record['UID']).strip()] = record
-
                     # === 逐筆檢查 ===
-                    for r in records_by_uid.values():
+                    for r in st.session_state['data']:
                         uid = str(r['UID']).strip()
 
                         t_base = int(r['台幣金額'])
@@ -632,9 +570,9 @@ with tab_main:
                         # 準備要寫入的資料（A~L 欄）
                         # 注意：時間戳和使用者會更新為當前上傳者
                         row_values_A_to_L = [
-                            to_sheet_cell(now), to_sheet_cell(f_user), to_sheet_cell(r['商店名稱']), to_sheet_cell(r['品項摘要']), to_sheet_cell(r['日期']),
-                            to_sheet_cell(r['外幣金額']), to_sheet_cell(r['幣別']), to_sheet_cell(r['匯率']),
-                            to_sheet_cell(t_base), to_sheet_cell(t_total - t_base), to_sheet_cell(t_total), to_sheet_cell(r['備註'])
+                            now, f_user, r['商店名稱'], r['品項摘要'], r['日期'],
+                            r['外幣金額'], r['幣別'], r['匯率'],
+                            t_base, t_total - t_base, t_total, r['備註']
                         ]
 
                         if uid in uid_to_row:
@@ -678,7 +616,8 @@ with tab_main:
                 if st.button("🗑️ 清空暫存區", type="secondary", use_container_width=True):
                     st.session_state['data'] = []
                     st.session_state['uploaded_images'] = {}
-                    st.success("✅ 暫存區已清空")
+                    st.session_state['uploader_key'] += 1  # 重置檔案上傳器
+                    st.success("✅ 暫存區已清空（包含上傳的檔案）")
                     st.rerun()
             with col2:
                 st.caption("⚠️ 清空前請確認已同步至雲端")
