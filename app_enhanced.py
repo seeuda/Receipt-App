@@ -356,9 +356,16 @@ JSON: shop, amount, YYYY-MM-DD, currency, items"""
         
         # 後處理：驗證日期合理性
         try:
-            normalized_date = normalize_receipt_date(result.get('date'), fallback_year=year)
+            raw_date = result.get("date")
+
+            normalized_date = normalize_receipt_date(raw_date, fallback_year=year)
+            date_candidates = get_ambiguous_date_options(raw_date, fallback_year=year)
+
             if normalized_date:
-                result['date'] = normalized_date
+                result["date"] = normalized_date
+                
+            result["日期歧義候選"] = date_candidates
+            
             date_str = result['date']
             parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
             
