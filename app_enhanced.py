@@ -16,6 +16,7 @@ import re
 
 REGISTRY_ID = "1rPQlGHtvx6M630vnZ_FANMRyR_EnMrzje85V3mZ2H0M"
 TEMPLATE_URL = "https://docs.google.com/spreadsheets/d/15kD4ZMYEZvN3unbIhkH8b69KAVpiiKP-TA4q3pYJ86k/edit"
+PREFERRED_MODELS = ["models/gemini-2.5-flash-lite", "models/gemini-2.5-flash"]
 
 def normalize_items(items_value):
     """
@@ -190,29 +191,74 @@ def normalize_receipt_date(date_value, fallback_year=None):
             if candidate:
                 return candidate
 
-    # 2-2) 沒有抓到年份位置：用 fallback_year 嘗試日月年 / 月日年
-    if fallback_year is not None and len(nums) >= 2:
-        a, b = nums[0], nums[1]
+    if fallback_year is not None:
+        # 僅在有明確分隔符的雙段日期時才使用 fallback_year，避免誤抓雜訊數字
+        pair_match = re.search(r"\b(\d{1,2})\s*[-/.]\s*(\d{1,2})\b", text)
+        if pair_match:
+            a, b = int(pair_match.group(1)), int(pair_match.group(2))
 
-        # 依範圍判斷日月順序
-        if a > 12 and b <= 12:
-            candidate = _safe_date(fallback_year, b, a)  # DMY
+            if a > 12 and b <= 12:
+                candidate = _safe_date(fallback_year, b, a)
+                if candidate:
+                    return candidate
+            if b > 12 and a <= 12:
+                candidate = _safe_date(fallback_year, a, b)
+                if candidate:
+                    return candidate
+
+            candidate = _safe_date(fallback_year, a, b)
             if candidate:
                 return candidate
-        if b > 12 and a <= 12:
-            candidate = _safe_date(fallback_year, a, b)  # MDY
+            candidate = _safe_date(fallback_year, b, a)
             if candidate:
                 return candidate
-
-        # 兩者都 <=12：先月日，再日月
-        candidate = _safe_date(fallback_year, a, b)
-        if candidate:
-            return candidate
-        candidate = _safe_date(fallback_year, b, a)
-        if candidate:
-            return candidate
 
     return None
+
+
+def get_ambiguous_date_options(date_value, fallback_year=None):
+    """若為歧義日期（如 03/04/2025），回傳兩個候選 YYYY-MM-DD。"""
+    if date_value is None:
+        return []
+
+    text = str(date_value).strip()
+    if not text:
+        return []
+
+    # 只針對 3 段數字日期，避免把 invoice 編號誤當日期
+    m = re.search(r"\b(\d{1,2})\s*[-/.]\s*(\d{1,2})\s*[-/.]\s*(\d{2,4})\b", text)
+    if not m:
+        return []
+
+    first, second, third = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    if first > 12 or second > 12:
+        return []
+
+    if third < 100:
+        if fallback_year is not None and third == int(fallback_year) % 100:
+            year = int(fallback_year)
+        else:
+            year = 2000 + third if third <= 69 else 1900 + third
+    else:
+        year = third
+
+    dmy = None
+    mdy = None
+    try:
+        dmy = datetime(year, second, first).strftime("%Y-%m-%d")
+    except:
+        pass
+    try:
+        mdy = datetime(year, first, second).strftime("%Y-%m-%d")
+    except:
+        pass
+
+    options = []
+    if dmy:
+        options.append((dmy, f"{dmy}（以日月年解讀）"))
+    if mdy and mdy != dmy:
+        options.append((mdy, f"{mdy}（以月日年解讀）"))
+    return options
 
 def get_rate_by_date(currency_code, target_date):
     if currency_code in ("TWD", "NTD"):
@@ -319,16 +365,43 @@ def test_api_connection(api_key):
     except Exception as e:
         return False, str(e)
 
-def run_vlm_scan(api_key, image_bytes, year, country_info):
-    """VLM 辨識：極簡版 - 完全避免 Thinking Mode"""
+@st.cache_data(ttl=600)
+def resolve_vlm_model(api_key):
+    """依可用模型清單自動選擇可用且相對低成本的 VLM 模型。"""
     try:
         genai.configure(api_key=api_key)
-        
-        # === 關鍵優化：完全移除 System Instruction ===
-        # 任何 System Instruction 都會觸發 Thinking
-        # 必須使用純粹的圖片 + 超簡 Prompt
+        models = [m for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        names = [m.name for m in models]
+
+        # 優先使用預設偏好的低成本模型
+        for preferred in PREFERRED_MODELS:
+            if preferred in names:
+                return preferred
+
+        # 後備：任一 2.5 flash 模型
+        for name in names:
+            if '2.5-flash' in name:
+                return name
+
+        # 再後備：任一 flash 模型
+        for name in names:
+            if 'flash' in name:
+                return name
+
+        return None
+    except:
+        return None
+
+def run_vlm_scan(api_key, image_bytes, year, country_info):
+    """VLM 辨識：自動選用可用 Flash 模型，避免不可用模型造成失敗。"""
+    try:
+        genai.configure(api_key=api_key)
+
+        selected_model = resolve_vlm_model(api_key) or "models/gemini-2.5-flash"
+
+        # 使用可用模型 + 移除 system_instruction 控制 tokens
         model = genai.GenerativeModel(
-            model_name='models/gemini-2.5-flash'
+            model_name=selected_model
             # 完全不設定 system_instruction
         )
         
@@ -420,6 +493,8 @@ with st.sidebar:
         if u_key: active_key = u_key
 
     if active_key:
+        resolved_model = resolve_vlm_model(active_key)
+        st.caption(f"💡 目前辨識模型：{resolved_model or 'models/gemini-2.5-flash'}")
         if st.button("⚡ 測試 API 連線 (Ping)", use_container_width=True):
             with st.spinner("測試中..."):
                 success, msg = test_api_connection(active_key)
