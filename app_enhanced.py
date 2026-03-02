@@ -109,6 +109,7 @@ def normalize_receipt_date(date_value, fallback_year=None):
     if not text:
         return None
 
+    # 1) 先嘗試常見乾淨格式
     candidate_formats = [
         "%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d",
         "%d-%m-%Y", "%d/%m/%Y", "%d.%m.%Y",
@@ -124,6 +125,7 @@ def normalize_receipt_date(date_value, fallback_year=None):
         except:
             continue
 
+    # 2) 混雜字串解析（例如 Receipt Date: 25/03/14 或 2025年3月14日）
     matches = list(re.finditer(r"\d+", text))
     if len(matches) < 2:
         return None
@@ -155,21 +157,32 @@ def normalize_receipt_date(date_value, fallback_year=None):
                     year_idx = i
                     break
 
+    # 若字串內有明確四位數年份，也可直接採用
+    if year_idx is None:
+        for i, token in enumerate(raw_tokens):
+            if len(token) == 4 and 2000 <= int(token) <= 2100:
+                year_idx = i
+                break
+
+    # 2-1) 找到年份位置：依位置推斷 YYYY-MM-DD 或 DD-MM-YYYY
     if year_idx is not None:
         year_token = nums[year_idx]
         if year_token < 100:
             year_token = (2000 + year_token) if year_token <= 69 else (1900 + year_token)
 
+        # 年在前 -> 年月日
         if year_idx + 2 < len(nums):
             candidate = _safe_date(year_token, nums[year_idx + 1], nums[year_idx + 2])
             if candidate:
                 return candidate
 
+        # 年在後 -> 日月年
         if year_idx - 2 >= 0:
             candidate = _safe_date(year_token, nums[year_idx - 1], nums[year_idx - 2])
             if candidate:
                 return candidate
 
+        # 年在中間 -> 月年日 或 日年月，嘗試兩種
         if 0 < year_idx < len(nums) - 1:
             candidate = _safe_date(year_token, nums[year_idx - 1], nums[year_idx + 1])
             if candidate:
@@ -416,9 +429,16 @@ JSON: shop, amount, YYYY-MM-DD, currency, items"""
         
         # 後處理：驗證日期合理性
         try:
-            normalized_date = normalize_receipt_date(result.get('date'), fallback_year=year)
+            raw_date = result.get("date")
+
+            normalized_date = normalize_receipt_date(raw_date, fallback_year=year)
+            date_candidates = get_ambiguous_date_options(raw_date, fallback_year=year)
+
             if normalized_date:
-                result['date'] = normalized_date
+                result["date"] = normalized_date
+                
+            result["日期歧義候選"] = date_candidates
+            
             date_str = result['date']
             parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
             
@@ -603,6 +623,7 @@ with tab_main:
                             raw_date = res.get('date')
                             receipt_date = normalize_receipt_date(raw_date, fallback_year=target_year)
                             date_candidates = get_ambiguous_date_options(raw_date, fallback_year=target_year)
+                            receipt_date = normalize_receipt_date(res.get('date'), fallback_year=target_year)
                             if not receipt_date:
                                 # 如果格式錯誤，使用當天日期
                                 receipt_date = datetime.now().strftime("%Y-%m-%d")
