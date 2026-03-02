@@ -89,6 +89,12 @@ def normalize_receipt_date(date_value, fallback_year=None):
     if date_value is None:
         return None
 
+    def _safe_date(y, m, d):
+        try:
+            return datetime(int(y), int(m), int(d)).strftime("%Y-%m-%d")
+        except:
+            return None
+
     if isinstance(date_value, datetime):
         return date_value.strftime("%Y-%m-%d")
 
@@ -102,14 +108,14 @@ def normalize_receipt_date(date_value, fallback_year=None):
     if not text:
         return None
 
-    # 1) 先嘗試常見日期格式
+    # 1) 先嘗試常見乾淨格式
     candidate_formats = [
         "%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d",
         "%d-%m-%Y", "%d/%m/%Y", "%d.%m.%Y",
         "%m-%d-%Y", "%m/%d/%Y", "%m.%d.%Y",
-        "%y-%m-%d", "%y/%m/%d",
-        "%d-%m-%y", "%d/%m/%y",
-        "%m-%d-%y", "%m/%d/%y",
+        "%y-%m-%d", "%y/%m/%d", "%y.%m.%d",
+        "%d-%m-%y", "%d/%m/%y", "%d.%m.%y",
+        "%m-%d-%y", "%m/%d/%y", "%m.%d.%y",
     ]
     for fmt in candidate_formats:
         try:
@@ -118,37 +124,85 @@ def normalize_receipt_date(date_value, fallback_year=None):
         except:
             continue
 
-    # 2) 從混雜字串抓出數字日期（如 2024年3月5日）
-    digits = re.findall(r"\d+", text)
-    if len(digits) >= 3:
-        y, m, d = None, None, None
+    # 2) 混雜字串解析（例如 Receipt Date: 25/03/14 或 2025年3月14日）
+    matches = list(re.finditer(r"\d+", text))
+    if len(matches) < 2:
+        return None
 
-        # 有四位數年份優先
-        for i, token in enumerate(digits[:4]):
-            if len(token) == 4:
-                y = int(token)
-                rest = [int(x) for idx, x in enumerate(digits[:4]) if idx != i]
-                if len(rest) >= 2:
-                    m, d = rest[0], rest[1]
+    nums = [int(m.group()) for m in matches]
+    raw_tokens = [m.group() for m in matches]
+
+    fallback_year = int(fallback_year) if fallback_year is not None else None
+    yy = fallback_year % 100 if fallback_year is not None else None
+
+    # 嘗試使用 sidebar 年份定位年份欄位（2025 或 25）
+    year_idx = None
+    if fallback_year is not None:
+        for i, n in enumerate(nums):
+            if n == fallback_year:
+                year_idx = i
+                break
+        if year_idx is None:
+            for i, token in enumerate(raw_tokens):
+                if len(token) <= 2 and int(token) == yy:
+                    year_idx = i
+                    break
+
+    # 若字串內有明確四位數年份，也可直接採用
+    if year_idx is None:
+        for i, token in enumerate(raw_tokens):
+            if len(token) == 4 and 2000 <= int(token) <= 2100:
+                year_idx = i
                 break
 
-        # 沒有四位數年份，使用 fallback_year
-        if y is None and fallback_year is not None:
-            y = int(fallback_year)
-            first, second = int(digits[0]), int(digits[1])
-            if first > 12 and second <= 12:
-                d, m = first, second
-            elif second > 12 and first <= 12:
-                m, d = first, second
-            else:
-                m, d = first, second
+    # 2-1) 找到年份位置：依位置推斷 YYYY-MM-DD 或 DD-MM-YYYY
+    if year_idx is not None:
+        year_token = nums[year_idx]
+        if year_token < 100:
+            year_token = (2000 + year_token) if year_token <= 69 else (1900 + year_token)
 
-        if all(v is not None for v in (y, m, d)):
-            try:
-                parsed = datetime(int(y), int(m), int(d))
-                return parsed.strftime("%Y-%m-%d")
-            except:
-                pass
+        # 年在前 -> 年月日
+        if year_idx + 2 < len(nums):
+            candidate = _safe_date(year_token, nums[year_idx + 1], nums[year_idx + 2])
+            if candidate:
+                return candidate
+
+        # 年在後 -> 日月年
+        if year_idx - 2 >= 0:
+            candidate = _safe_date(year_token, nums[year_idx - 1], nums[year_idx - 2])
+            if candidate:
+                return candidate
+
+        # 年在中間 -> 月年日 或 日年月，嘗試兩種
+        if 0 < year_idx < len(nums) - 1:
+            candidate = _safe_date(year_token, nums[year_idx - 1], nums[year_idx + 1])
+            if candidate:
+                return candidate
+            candidate = _safe_date(year_token, nums[year_idx + 1], nums[year_idx - 1])
+            if candidate:
+                return candidate
+
+    # 2-2) 沒有抓到年份位置：用 fallback_year 嘗試日月年 / 月日年
+    if fallback_year is not None and len(nums) >= 2:
+        a, b = nums[0], nums[1]
+
+        # 依範圍判斷日月順序
+        if a > 12 and b <= 12:
+            candidate = _safe_date(fallback_year, b, a)  # DMY
+            if candidate:
+                return candidate
+        if b > 12 and a <= 12:
+            candidate = _safe_date(fallback_year, a, b)  # MDY
+            if candidate:
+                return candidate
+
+        # 兩者都 <=12：先月日，再日月
+        candidate = _safe_date(fallback_year, a, b)
+        if candidate:
+            return candidate
+        candidate = _safe_date(fallback_year, b, a)
+        if candidate:
+            return candidate
 
     return None
 
