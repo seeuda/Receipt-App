@@ -109,14 +109,13 @@ def normalize_receipt_date(date_value, fallback_year=None):
     if not text:
         return None
 
-    # 1) 先嘗試常見乾淨格式
     candidate_formats = [
-        "%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d",
         "%d-%m-%Y", "%d/%m/%Y", "%d.%m.%Y",
-        "%m-%d-%Y", "%m/%d/%Y", "%m.%d.%Y",
-        "%y-%m-%d", "%y/%m/%d", "%y.%m.%d",
         "%d-%m-%y", "%d/%m/%y", "%d.%m.%y",
+        "%m-%d-%Y", "%m/%d/%Y", "%m.%d.%Y",
         "%m-%d-%y", "%m/%d/%y", "%m.%d.%y",
+        "%y-%m-%d", "%y/%m/%d", "%y.%m.%d",
+        "%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d",
     ]
     for fmt in candidate_formats:
         try:
