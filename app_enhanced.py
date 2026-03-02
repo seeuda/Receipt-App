@@ -108,6 +108,7 @@ def normalize_receipt_date(date_value, fallback_year=None):
     if not text:
         return None
 
+    # 1) 先嘗試常見乾淨格式
     candidate_formats = [
         "%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d",
         "%d-%m-%Y", "%d/%m/%Y", "%d.%m.%Y",
@@ -123,6 +124,7 @@ def normalize_receipt_date(date_value, fallback_year=None):
         except:
             continue
 
+    # 2) 混雜字串解析（例如 Receipt Date: 25/03/14 或 2025年3月14日）
     matches = list(re.finditer(r"\d+", text))
     if len(matches) < 2:
         return None
@@ -154,21 +156,32 @@ def normalize_receipt_date(date_value, fallback_year=None):
                     year_idx = i
                     break
 
+    # 若字串內有明確四位數年份，也可直接採用
+    if year_idx is None:
+        for i, token in enumerate(raw_tokens):
+            if len(token) == 4 and 2000 <= int(token) <= 2100:
+                year_idx = i
+                break
+
+    # 2-1) 找到年份位置：依位置推斷 YYYY-MM-DD 或 DD-MM-YYYY
     if year_idx is not None:
         year_token = nums[year_idx]
         if year_token < 100:
             year_token = (2000 + year_token) if year_token <= 69 else (1900 + year_token)
 
+        # 年在前 -> 年月日
         if year_idx + 2 < len(nums):
             candidate = _safe_date(year_token, nums[year_idx + 1], nums[year_idx + 2])
             if candidate:
                 return candidate
 
+        # 年在後 -> 日月年
         if year_idx - 2 >= 0:
             candidate = _safe_date(year_token, nums[year_idx - 1], nums[year_idx - 2])
             if candidate:
                 return candidate
 
+        # 年在中間 -> 月年日 或 日年月，嘗試兩種
         if 0 < year_idx < len(nums) - 1:
             candidate = _safe_date(year_token, nums[year_idx - 1], nums[year_idx + 1])
             if candidate:
@@ -177,74 +190,29 @@ def normalize_receipt_date(date_value, fallback_year=None):
             if candidate:
                 return candidate
 
-    if fallback_year is not None:
-        # 僅在有明確分隔符的雙段日期時才使用 fallback_year，避免誤抓雜訊數字
-        pair_match = re.search(r"\b(\d{1,2})\s*[-/.]\s*(\d{1,2})\b", text)
-        if pair_match:
-            a, b = int(pair_match.group(1)), int(pair_match.group(2))
+    # 2-2) 沒有抓到年份位置：用 fallback_year 嘗試日月年 / 月日年
+    if fallback_year is not None and len(nums) >= 2:
+        a, b = nums[0], nums[1]
 
-            if a > 12 and b <= 12:
-                candidate = _safe_date(fallback_year, b, a)
-                if candidate:
-                    return candidate
-            if b > 12 and a <= 12:
-                candidate = _safe_date(fallback_year, a, b)
-                if candidate:
-                    return candidate
-
-            candidate = _safe_date(fallback_year, a, b)
+        # 依範圍判斷日月順序
+        if a > 12 and b <= 12:
+            candidate = _safe_date(fallback_year, b, a)  # DMY
             if candidate:
                 return candidate
-            candidate = _safe_date(fallback_year, b, a)
+        if b > 12 and a <= 12:
+            candidate = _safe_date(fallback_year, a, b)  # MDY
             if candidate:
                 return candidate
+
+        # 兩者都 <=12：先月日，再日月
+        candidate = _safe_date(fallback_year, a, b)
+        if candidate:
+            return candidate
+        candidate = _safe_date(fallback_year, b, a)
+        if candidate:
+            return candidate
 
     return None
-
-
-def get_ambiguous_date_options(date_value, fallback_year=None):
-    """若為歧義日期（如 03/04/2025），回傳兩個候選 YYYY-MM-DD。"""
-    if date_value is None:
-        return []
-
-    text = str(date_value).strip()
-    if not text:
-        return []
-
-    # 只針對 3 段數字日期，避免把 invoice 編號誤當日期
-    m = re.search(r"\b(\d{1,2})\s*[-/.]\s*(\d{1,2})\s*[-/.]\s*(\d{2,4})\b", text)
-    if not m:
-        return []
-
-    first, second, third = int(m.group(1)), int(m.group(2)), int(m.group(3))
-    if first > 12 or second > 12:
-        return []
-
-    if third < 100:
-        if fallback_year is not None and third == int(fallback_year) % 100:
-            year = int(fallback_year)
-        else:
-            year = 2000 + third if third <= 69 else 1900 + third
-    else:
-        year = third
-
-    dmy = None
-    mdy = None
-    try:
-        dmy = datetime(year, second, first).strftime("%Y-%m-%d")
-    except:
-        pass
-    try:
-        mdy = datetime(year, first, second).strftime("%Y-%m-%d")
-    except:
-        pass
-
-    options = []
-    if dmy:
-        options.append((dmy, f"{dmy}（以日月年解讀）"))
-    if mdy and mdy != dmy:
-        options.append((mdy, f"{mdy}（以月日年解讀）"))
-    return options
 
 def get_rate_by_date(currency_code, target_date):
     if currency_code in ("TWD", "NTD"):
@@ -573,6 +541,7 @@ with tab_main:
                             raw_date = res.get('date')
                             receipt_date = normalize_receipt_date(raw_date, fallback_year=target_year)
                             date_candidates = get_ambiguous_date_options(raw_date, fallback_year=target_year)
+                            receipt_date = normalize_receipt_date(res.get('date'), fallback_year=target_year)
                             if not receipt_date:
                                 # 如果格式錯誤，使用當天日期
                                 receipt_date = datetime.now().strftime("%Y-%m-%d")
