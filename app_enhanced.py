@@ -84,6 +84,168 @@ def normalize_items(items_value):
     except:
         return "無"
 
+def normalize_receipt_date(date_value, fallback_year=None):
+    """將模型回傳日期正規化為 YYYY-MM-DD，失敗時回傳 None。"""
+    if date_value is None:
+        return None
+
+    def _safe_date(y, m, d):
+        try:
+            return datetime(int(y), int(m), int(d)).strftime("%Y-%m-%d")
+        except:
+            return None
+
+    if isinstance(date_value, datetime):
+        return date_value.strftime("%Y-%m-%d")
+
+    if hasattr(date_value, "strftime"):
+        try:
+            return date_value.strftime("%Y-%m-%d")
+        except:
+            pass
+
+    text = str(date_value).strip()
+    if not text:
+        return None
+
+    candidate_formats = [
+        "%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d",
+        "%d-%m-%Y", "%d/%m/%Y", "%d.%m.%Y",
+        "%m-%d-%Y", "%m/%d/%Y", "%m.%d.%Y",
+        "%y-%m-%d", "%y/%m/%d", "%y.%m.%d",
+        "%d-%m-%y", "%d/%m/%y", "%d.%m.%y",
+        "%m-%d-%y", "%m/%d/%y", "%m.%d.%y",
+    ]
+    for fmt in candidate_formats:
+        try:
+            parsed = datetime.strptime(text, fmt)
+            return parsed.strftime("%Y-%m-%d")
+        except:
+            continue
+
+    matches = list(re.finditer(r"\d+", text))
+    if len(matches) < 2:
+        return None
+
+    nums = [int(m.group()) for m in matches]
+    raw_tokens = [m.group() for m in matches]
+    fallback_year = int(fallback_year) if fallback_year is not None else None
+
+    year_idx = None
+    # 先找四位數年份（優先）
+    for i, token in enumerate(raw_tokens):
+        if len(token) == 4 and 2000 <= int(token) <= 2100:
+            year_idx = i
+            break
+
+    # 若沒有四位數年份，才使用 sidebar 年份當 anchor
+    if year_idx is None and fallback_year is not None:
+        yy = fallback_year % 100
+        for i, n in enumerate(nums):
+            if n == fallback_year:
+                year_idx = i
+                break
+
+        # 兩位數年份 anchor：僅限明顯 3 段日期結構（例如 25/03/14）
+        looks_like_triplet_date = bool(re.search(r"\b\d{1,2}\s*[-/.]\s*\d{1,2}\s*[-/.]\s*\d{1,2}\b", text))
+        if year_idx is None and looks_like_triplet_date and len(nums) == 3:
+            for i, token in enumerate(raw_tokens):
+                if len(token) <= 2 and int(token) == yy:
+                    year_idx = i
+                    break
+
+    if year_idx is not None:
+        year_token = nums[year_idx]
+        if year_token < 100:
+            year_token = (2000 + year_token) if year_token <= 69 else (1900 + year_token)
+
+        if year_idx + 2 < len(nums):
+            candidate = _safe_date(year_token, nums[year_idx + 1], nums[year_idx + 2])
+            if candidate:
+                return candidate
+
+        if year_idx - 2 >= 0:
+            candidate = _safe_date(year_token, nums[year_idx - 1], nums[year_idx - 2])
+            if candidate:
+                return candidate
+
+        if 0 < year_idx < len(nums) - 1:
+            candidate = _safe_date(year_token, nums[year_idx - 1], nums[year_idx + 1])
+            if candidate:
+                return candidate
+            candidate = _safe_date(year_token, nums[year_idx + 1], nums[year_idx - 1])
+            if candidate:
+                return candidate
+
+    if fallback_year is not None:
+        # 僅在有明確分隔符的雙段日期時才使用 fallback_year，避免誤抓雜訊數字
+        pair_match = re.search(r"\b(\d{1,2})\s*[-/.]\s*(\d{1,2})\b", text)
+        if pair_match:
+            a, b = int(pair_match.group(1)), int(pair_match.group(2))
+
+            if a > 12 and b <= 12:
+                candidate = _safe_date(fallback_year, b, a)
+                if candidate:
+                    return candidate
+            if b > 12 and a <= 12:
+                candidate = _safe_date(fallback_year, a, b)
+                if candidate:
+                    return candidate
+
+            candidate = _safe_date(fallback_year, a, b)
+            if candidate:
+                return candidate
+            candidate = _safe_date(fallback_year, b, a)
+            if candidate:
+                return candidate
+
+    return None
+
+
+def get_ambiguous_date_options(date_value, fallback_year=None):
+    """若為歧義日期（如 03/04/2025），回傳兩個候選 YYYY-MM-DD。"""
+    if date_value is None:
+        return []
+
+    text = str(date_value).strip()
+    if not text:
+        return []
+
+    # 只針對 3 段數字日期，避免把 invoice 編號誤當日期
+    m = re.search(r"\b(\d{1,2})\s*[-/.]\s*(\d{1,2})\s*[-/.]\s*(\d{2,4})\b", text)
+    if not m:
+        return []
+
+    first, second, third = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    if first > 12 or second > 12:
+        return []
+
+    if third < 100:
+        if fallback_year is not None and third == int(fallback_year) % 100:
+            year = int(fallback_year)
+        else:
+            year = 2000 + third if third <= 69 else 1900 + third
+    else:
+        year = third
+
+    dmy = None
+    mdy = None
+    try:
+        dmy = datetime(year, second, first).strftime("%Y-%m-%d")
+    except:
+        pass
+    try:
+        mdy = datetime(year, first, second).strftime("%Y-%m-%d")
+    except:
+        pass
+
+    options = []
+    if dmy:
+        options.append((dmy, f"{dmy}（以日月年解讀）"))
+    if mdy and mdy != dmy:
+        options.append((mdy, f"{mdy}（以月日年解讀）"))
+    return options
+
 def get_rate_by_date(currency_code, target_date):
     if currency_code in ("TWD", "NTD"):
         return 1.0
@@ -226,6 +388,9 @@ JSON: shop, amount, YYYY-MM-DD, currency, items"""
         
         # 後處理：驗證日期合理性
         try:
+            normalized_date = normalize_receipt_date(result.get('date'), fallback_year=year)
+            if normalized_date:
+                result['date'] = normalized_date
             date_str = result['date']
             parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
             
@@ -405,11 +570,10 @@ with tab_main:
                             uid = hashlib.md5(img_bytes).hexdigest()[:12]
                             
                             # 確保日期格式正確
-                            try:
-                                # 驗證日期格式
-                                receipt_date = res['date']
-                                datetime.strptime(receipt_date, "%Y-%m-%d")
-                            except:
+                            raw_date = res.get('date')
+                            receipt_date = normalize_receipt_date(raw_date, fallback_year=target_year)
+                            date_candidates = get_ambiguous_date_options(raw_date, fallback_year=target_year)
+                            if not receipt_date:
                                 # 如果格式錯誤，使用當天日期
                                 receipt_date = datetime.now().strftime("%Y-%m-%d")
                                 st.warning(f"⚠️ 收據日期格式錯誤，已設為今天：{receipt_date}")
@@ -428,6 +592,8 @@ with tab_main:
                                 "UID": uid,
                                 "商店名稱": res['shop'],
                                 "日期": receipt_date,  # 使用驗證過的日期
+                                "日期原始": str(raw_date) if raw_date is not None else "",
+                                "日期歧義候選": date_candidates,
                                 "外幣金額": res['amount'],
                                 "幣別": res['currency'],
                                 "匯率": round(exchange_rate, 4) if payment_method == "現金" else round(exchange_rate, 3),
@@ -517,6 +683,25 @@ with tab_main:
                             date_value = datetime.now().date()
                             st.warning(f"⚠️ 日期格式錯誤，已設為今天：{date_value}")
                         
+                        raw_date = record.get('日期原始', '')
+                        date_candidates = record.get('日期歧義候選', [])
+                        if len(date_candidates) >= 2:
+                            st.warning(f"⚠️ 偵測到日期歧義：{raw_date}")
+                            labels = [label for _, label in date_candidates]
+                            values = [value for value, _ in date_candidates]
+                            current_value = record['日期'] if record['日期'] in values else values[0]
+                            selected_label = st.radio(
+                                "請確認日期解讀方式",
+                                labels,
+                                index=labels.index(next(label for value, label in date_candidates if value == current_value)),
+                                key=f"ambiguous_date_{idx}"
+                            )
+                            selected_value = next(value for value, label in date_candidates if label == selected_label)
+                            try:
+                                date_value = datetime.strptime(selected_value, "%Y-%m-%d").date()
+                            except:
+                                pass
+
                         new_date = st.date_input("日期", value=date_value)
                         new_amount = st.number_input("外幣金額", value=float(record['外幣金額']), format="%.2f")
                         new_currency = st.text_input("幣別", value=record['幣別'])
@@ -615,12 +800,12 @@ with tab_main:
                     wks = gc.open_by_key(tid).get_worksheet(0)
         
                     # === 建立 雲端 UID -> 列號 對照表 ===
-                    uid_col = wks.col_values(13)  # M 欄
+                    all_rows = wks.get_all_values()
                     uid_to_row = {}
-                    for idx, uid in enumerate(uid_col, start=1):
-                        uid = str(uid).strip()
+                    for row_idx, row in enumerate(all_rows, start=1):
+                        uid = str(row[12]).strip() if len(row) >= 13 else ""
                         if uid:
-                            uid_to_row[uid] = idx
+                            uid_to_row[uid] = row_idx
 
                     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -659,6 +844,9 @@ with tab_main:
                         wks.batch_update(updates, value_input_option='USER_ENTERED')
 
                     if rows_to_append:
+                        required_rows = len(all_rows) + len(rows_to_append)
+                        if required_rows > wks.row_count:
+                            wks.add_rows(required_rows - wks.row_count)
                         wks.append_rows(rows_to_append, value_input_option='USER_ENTERED')
 
                     msg = []
