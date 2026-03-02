@@ -16,6 +16,7 @@ import re
 
 REGISTRY_ID = "1rPQlGHtvx6M630vnZ_FANMRyR_EnMrzje85V3mZ2H0M"
 TEMPLATE_URL = "https://docs.google.com/spreadsheets/d/15kD4ZMYEZvN3unbIhkH8b69KAVpiiKP-TA4q3pYJ86k/edit"
+PREFERRED_MODELS = ["models/gemini-2.5-flash-lite", "models/gemini-2.5-flash"]
 
 def normalize_items(items_value):
     """
@@ -123,6 +124,7 @@ def normalize_receipt_date(date_value, fallback_year=None):
         except:
             continue
 
+    # 2) 混雜字串解析（例如 Receipt Date: 25/03/14 或 2025年3月14日）
     matches = list(re.finditer(r"\d+", text))
     if len(matches) < 2:
         return None
@@ -154,21 +156,32 @@ def normalize_receipt_date(date_value, fallback_year=None):
                     year_idx = i
                     break
 
+    # 若字串內有明確四位數年份，也可直接採用
+    if year_idx is None:
+        for i, token in enumerate(raw_tokens):
+            if len(token) == 4 and 2000 <= int(token) <= 2100:
+                year_idx = i
+                break
+
+    # 2-1) 找到年份位置：依位置推斷 YYYY-MM-DD 或 DD-MM-YYYY
     if year_idx is not None:
         year_token = nums[year_idx]
         if year_token < 100:
             year_token = (2000 + year_token) if year_token <= 69 else (1900 + year_token)
 
+        # 年在前 -> 年月日
         if year_idx + 2 < len(nums):
             candidate = _safe_date(year_token, nums[year_idx + 1], nums[year_idx + 2])
             if candidate:
                 return candidate
 
+        # 年在後 -> 日月年
         if year_idx - 2 >= 0:
             candidate = _safe_date(year_token, nums[year_idx - 1], nums[year_idx - 2])
             if candidate:
                 return candidate
 
+        # 年在中間 -> 月年日 或 日年月，嘗試兩種
         if 0 < year_idx < len(nums) - 1:
             candidate = _safe_date(year_token, nums[year_idx - 1], nums[year_idx + 1])
             if candidate:
@@ -351,16 +364,43 @@ def test_api_connection(api_key):
     except Exception as e:
         return False, str(e)
 
-def run_vlm_scan(api_key, image_bytes, year, country_info):
-    """VLM 辨識：極簡版 - 完全避免 Thinking Mode"""
+@st.cache_data(ttl=600)
+def resolve_vlm_model(api_key):
+    """依可用模型清單自動選擇可用且相對低成本的 VLM 模型。"""
     try:
         genai.configure(api_key=api_key)
-        
-        # === 關鍵優化：完全移除 System Instruction ===
-        # 任何 System Instruction 都會觸發 Thinking
-        # 必須使用純粹的圖片 + 超簡 Prompt
+        models = [m for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        names = [m.name for m in models]
+
+        # 優先使用預設偏好的低成本模型
+        for preferred in PREFERRED_MODELS:
+            if preferred in names:
+                return preferred
+
+        # 後備：任一 2.5 flash 模型
+        for name in names:
+            if '2.5-flash' in name:
+                return name
+
+        # 再後備：任一 flash 模型
+        for name in names:
+            if 'flash' in name:
+                return name
+
+        return None
+    except:
+        return None
+
+def run_vlm_scan(api_key, image_bytes, year, country_info):
+    """VLM 辨識：自動選用可用 Flash 模型，避免不可用模型造成失敗。"""
+    try:
+        genai.configure(api_key=api_key)
+
+        selected_model = resolve_vlm_model(api_key) or "models/gemini-2.5-flash"
+
+        # 使用可用模型 + 移除 system_instruction 控制 tokens
         model = genai.GenerativeModel(
-            model_name='models/gemini-2.5-flash'
+            model_name=selected_model
             # 完全不設定 system_instruction
         )
         
@@ -395,8 +435,9 @@ JSON: shop, amount, YYYY-MM-DD, currency, items"""
 
             if normalized_date:
                 result["date"] = normalized_date
-
+                
             result["日期歧義候選"] = date_candidates
+            
             date_str = result['date']
             parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
             
@@ -451,6 +492,8 @@ with st.sidebar:
         if u_key: active_key = u_key
 
     if active_key:
+        resolved_model = resolve_vlm_model(active_key)
+        st.caption(f"💡 目前辨識模型：{resolved_model or 'models/gemini-2.5-flash'}")
         if st.button("⚡ 測試 API 連線 (Ping)", use_container_width=True):
             with st.spinner("測試中..."):
                 success, msg = test_api_connection(active_key)
@@ -579,6 +622,7 @@ with tab_main:
                             raw_date = res.get('date')
                             receipt_date = normalize_receipt_date(raw_date, fallback_year=target_year)
                             date_candidates = get_ambiguous_date_options(raw_date, fallback_year=target_year)
+                            receipt_date = normalize_receipt_date(res.get('date'), fallback_year=target_year)
                             if not receipt_date:
                                 # 如果格式錯誤，使用當天日期
                                 receipt_date = datetime.now().strftime("%Y-%m-%d")
