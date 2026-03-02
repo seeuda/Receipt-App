@@ -131,18 +131,26 @@ def normalize_receipt_date(date_value, fallback_year=None):
 
     nums = [int(m.group()) for m in matches]
     raw_tokens = [m.group() for m in matches]
-
     fallback_year = int(fallback_year) if fallback_year is not None else None
-    yy = fallback_year % 100 if fallback_year is not None else None
 
-    # 嘗試使用 sidebar 年份定位年份欄位（2025 或 25）
     year_idx = None
-    if fallback_year is not None:
+    # 先找四位數年份（優先）
+    for i, token in enumerate(raw_tokens):
+        if len(token) == 4 and 2000 <= int(token) <= 2100:
+            year_idx = i
+            break
+
+    # 若沒有四位數年份，才使用 sidebar 年份當 anchor
+    if year_idx is None and fallback_year is not None:
+        yy = fallback_year % 100
         for i, n in enumerate(nums):
             if n == fallback_year:
                 year_idx = i
                 break
-        if year_idx is None:
+
+        # 兩位數年份 anchor：僅限明顯 3 段日期結構（例如 25/03/14）
+        looks_like_triplet_date = bool(re.search(r"\b\d{1,2}\s*[-/.]\s*\d{1,2}\s*[-/.]\s*\d{1,2}\b", text))
+        if year_idx is None and looks_like_triplet_date and len(nums) == 3:
             for i, token in enumerate(raw_tokens):
                 if len(token) <= 2 and int(token) == yy:
                     year_idx = i
@@ -348,9 +356,16 @@ JSON: shop, amount, YYYY-MM-DD, currency, items"""
         
         # 後處理：驗證日期合理性
         try:
-            normalized_date = normalize_receipt_date(result.get('date'), fallback_year=year)
+            raw_date = result.get("date")
+
+            normalized_date = normalize_receipt_date(raw_date, fallback_year=year)
+            date_candidates = get_ambiguous_date_options(raw_date, fallback_year=year)
+
             if normalized_date:
-                result['date'] = normalized_date
+                result["date"] = normalized_date
+                
+            result["日期歧義候選"] = date_candidates
+            
             date_str = result['date']
             parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
             
@@ -530,6 +545,9 @@ with tab_main:
                             uid = hashlib.md5(img_bytes).hexdigest()[:12]
                             
                             # 確保日期格式正確
+                            raw_date = res.get('date')
+                            receipt_date = normalize_receipt_date(raw_date, fallback_year=target_year)
+                            date_candidates = get_ambiguous_date_options(raw_date, fallback_year=target_year)
                             receipt_date = normalize_receipt_date(res.get('date'), fallback_year=target_year)
                             if not receipt_date:
                                 # 如果格式錯誤，使用當天日期
@@ -550,6 +568,8 @@ with tab_main:
                                 "UID": uid,
                                 "商店名稱": res['shop'],
                                 "日期": receipt_date,  # 使用驗證過的日期
+                                "日期原始": str(raw_date) if raw_date is not None else "",
+                                "日期歧義候選": date_candidates,
                                 "外幣金額": res['amount'],
                                 "幣別": res['currency'],
                                 "匯率": round(exchange_rate, 4) if payment_method == "現金" else round(exchange_rate, 3),
@@ -639,6 +659,25 @@ with tab_main:
                             date_value = datetime.now().date()
                             st.warning(f"⚠️ 日期格式錯誤，已設為今天：{date_value}")
                         
+                        raw_date = record.get('日期原始', '')
+                        date_candidates = record.get('日期歧義候選', [])
+                        if len(date_candidates) >= 2:
+                            st.warning(f"⚠️ 偵測到日期歧義：{raw_date}")
+                            labels = [label for _, label in date_candidates]
+                            values = [value for value, _ in date_candidates]
+                            current_value = record['日期'] if record['日期'] in values else values[0]
+                            selected_label = st.radio(
+                                "請確認日期解讀方式",
+                                labels,
+                                index=labels.index(next(label for value, label in date_candidates if value == current_value)),
+                                key=f"ambiguous_date_{idx}"
+                            )
+                            selected_value = next(value for value, label in date_candidates if label == selected_label)
+                            try:
+                                date_value = datetime.strptime(selected_value, "%Y-%m-%d").date()
+                            except:
+                                pass
+
                         new_date = st.date_input("日期", value=date_value)
                         new_amount = st.number_input("外幣金額", value=float(record['外幣金額']), format="%.2f")
                         new_currency = st.text_input("幣別", value=record['幣別'])
