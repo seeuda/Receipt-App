@@ -746,6 +746,7 @@ with tab_main:
                         
                         raw_date = record.get('日期原始', '')
                         date_candidates = record.get('日期歧義候選', [])
+                        selected_value = None
                         if len(date_candidates) >= 2:
                             st.warning(f"⚠️ 偵測到日期歧義：{raw_date}")
                             labels = [label for _, label in date_candidates]
@@ -810,8 +811,11 @@ with tab_main:
                         submitted = st.form_submit_button("✅ 更新此筆資料", use_container_width=True)
                         
                         if submitted:
+                            # 若有日期歧義選項，提交時以 radio 選擇為最終日期（避免 form 內 date_input 舊值）
+                            final_date_str = selected_value if selected_value else new_date.strftime("%Y-%m-%d")
+
                             # 檢查是否有變更
-                            date_changed = new_date.strftime("%Y-%m-%d") != record['日期']
+                            date_changed = final_date_str != record['日期']
                             amount_changed = new_amount != record['外幣金額']
                             currency_changed = new_currency != record['幣別']
                             rate_changed = new_rate != record['匯率']
@@ -819,7 +823,7 @@ with tab_main:
                             
                             # 更新資料
                             st.session_state['data'][idx]['商店名稱'] = new_shop
-                            st.session_state['data'][idx]['日期'] = new_date.strftime("%Y-%m-%d")
+                            st.session_state['data'][idx]['日期'] = final_date_str
                             st.session_state['data'][idx]['外幣金額'] = new_amount
                             st.session_state['data'][idx]['幣別'] = new_currency
                             st.session_state['data'][idx]['品項摘要'] = new_items
@@ -841,7 +845,7 @@ with tab_main:
                                     st.session_state['data'][idx]['台幣金額'] = round(new_amount * new_rate, 0)
                                 elif date_changed or currency_changed:
                                     # 日期或幣別變更，自動查詢新匯率
-                                    auto_rate = get_rate_by_date(new_currency, new_date.strftime("%Y-%m-%d"))
+                                    auto_rate = get_rate_by_date(new_currency, final_date_str)
                                     st.session_state['data'][idx]['匯率'] = round(auto_rate, 3)
                                     st.session_state['data'][idx]['台幣金額'] = round(new_amount * auto_rate, 0)
                                 elif amount_changed:
