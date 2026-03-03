@@ -614,6 +614,17 @@ with tab_main:
                         
                         res = run_vlm_scan(active_key, img_bytes, target_year, target_country)
                         if res:
+                            # 防呆：模型可能回傳非 dict，避免 .get / [] 觸發 AttributeError
+                            if not isinstance(res, dict):
+                                st.warning(f"⚠️ 第 {idx+1} 張辨識結果格式異常，已略過。")
+                                continue
+
+                            # 欄位防呆：缺少核心欄位時略過，避免後續 KeyError
+                            required_keys = {'shop', 'amount', 'currency'}
+                            if not required_keys.issubset(res.keys()):
+                                st.warning(f"⚠️ 第 {idx+1} 張辨識欄位不完整，已略過。")
+                                continue
+
                             # UID 只依據圖片內容（不包含使用者名稱）
                             # 確保同一張照片無論誰上傳都是相同 UID
                             uid = hashlib.md5(img_bytes).hexdigest()[:12]
