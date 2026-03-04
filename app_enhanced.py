@@ -188,12 +188,12 @@ def normalize_receipt_date(date_value, fallback_year=None):
         return None
 
     candidate_formats = [
-        "%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d",
         "%d-%m-%Y", "%d/%m/%Y", "%d.%m.%Y",
-        "%m-%d-%Y", "%m/%d/%Y", "%m.%d.%Y",
-        "%y-%m-%d", "%y/%m/%d", "%y.%m.%d",
         "%d-%m-%y", "%d/%m/%y", "%d.%m.%y",
+        "%m-%d-%Y", "%m/%d/%Y", "%m.%d.%Y",
         "%m-%d-%y", "%m/%d/%y", "%m.%d.%y",
+        "%y-%m-%d", "%y/%m/%d", "%y.%m.%d",
+        "%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d",
     ]
     for fmt in candidate_formats:
         try:
@@ -202,6 +202,7 @@ def normalize_receipt_date(date_value, fallback_year=None):
         except:
             continue
 
+    # 2) 混雜字串解析（例如 Receipt Date: 25/03/14 或 2025年3月14日）
     matches = list(re.finditer(r"\d+", text))
     if len(matches) < 2:
         return None
@@ -233,21 +234,32 @@ def normalize_receipt_date(date_value, fallback_year=None):
                     year_idx = i
                     break
 
+    # 若字串內有明確四位數年份，也可直接採用
+    if year_idx is None:
+        for i, token in enumerate(raw_tokens):
+            if len(token) == 4 and 2000 <= int(token) <= 2100:
+                year_idx = i
+                break
+
+    # 2-1) 找到年份位置：依位置推斷 YYYY-MM-DD 或 DD-MM-YYYY
     if year_idx is not None:
         year_token = nums[year_idx]
         if year_token < 100:
             year_token = (2000 + year_token) if year_token <= 69 else (1900 + year_token)
 
+        # 年在前 -> 年月日
         if year_idx + 2 < len(nums):
             candidate = _safe_date(year_token, nums[year_idx + 1], nums[year_idx + 2])
             if candidate:
                 return candidate
 
+        # 年在後 -> 日月年
         if year_idx - 2 >= 0:
             candidate = _safe_date(year_token, nums[year_idx - 1], nums[year_idx - 2])
             if candidate:
                 return candidate
 
+        # 年在中間 -> 月年日 或 日年月，嘗試兩種
         if 0 < year_idx < len(nums) - 1:
             candidate = _safe_date(year_token, nums[year_idx - 1], nums[year_idx + 1])
             if candidate:
