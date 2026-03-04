@@ -18,6 +18,84 @@ REGISTRY_ID = "1rPQlGHtvx6M630vnZ_FANMRyR_EnMrzje85V3mZ2H0M"
 TEMPLATE_URL = "https://docs.google.com/spreadsheets/d/15kD4ZMYEZvN3unbIhkH8b69KAVpiiKP-TA4q3pYJ86k/edit"
 PREFERRED_MODELS = ["models/gemini-2.5-flash-lite", "models/gemini-2.5-flash"]
 
+def extract_json_payload(text):
+    """盡量從模型輸出文字中萃取 JSON（dict 或 list）。"""
+    if not text:
+        return None
+
+    raw = str(text).replace('```json', '').replace('```', '').strip()
+
+    # 1) 直接嘗試整段 JSON
+    try:
+        return json.loads(raw)
+    except:
+        pass
+
+    # 2) 取第一段 { ... }
+    obj_match = re.search(r"\{[\s\S]*\}", raw)
+    if obj_match:
+        try:
+            return json.loads(obj_match.group(0))
+        except:
+            pass
+
+    # 3) 取第一段 [ ... ]
+    arr_match = re.search(r"\[[\s\S]*\]", raw)
+    if arr_match:
+        try:
+            return json.loads(arr_match.group(0))
+        except:
+            pass
+
+    return None
+
+
+def coerce_vlm_result(payload, fallback_currency=None):
+    """把 VLM 輸出容錯轉為 dict，失敗回傳 None。"""
+    if isinstance(payload, list):
+        payload = payload[0] if payload else None
+
+    if not isinstance(payload, dict):
+        return None
+
+    result = dict(payload)
+
+    # shop 欄位容錯
+    if 'shop' not in result:
+        for key in ('store', 'merchant', 'shop_name'):
+            if key in result:
+                result['shop'] = result[key]
+                break
+
+    # amount 欄位容錯（支援 "78,00"、"€78.00"）
+    if 'amount' in result and isinstance(result['amount'], str):
+        amount_text = result['amount'].strip()
+        amount_text = re.sub(r"[^\d,.-]", "", amount_text)
+        if amount_text.count(',') == 1 and amount_text.count('.') == 0:
+            amount_text = amount_text.replace(',', '.')
+        elif amount_text.count(',') > 1 and amount_text.count('.') == 0:
+            amount_text = amount_text.replace('.', '').replace(',', '.')
+        elif amount_text.count(',') >= 1 and amount_text.count('.') >= 1:
+            amount_text = amount_text.replace(',', '')
+        try:
+            result['amount'] = float(amount_text)
+        except:
+            pass
+
+    # currency 容錯
+    cur = result.get('currency')
+    if isinstance(cur, str) and cur.strip():
+        result['currency'] = cur.strip().upper()
+    elif fallback_currency:
+        result['currency'] = fallback_currency
+
+    # 基本欄位預設
+    if 'items' not in result:
+        result['items'] = '無'
+
+    return result
+
+
 def normalize_items(items_value):
     """
     將 VLM 回傳的品項資料轉為可寫入 Google Sheets 的純文字。
@@ -423,21 +501,17 @@ JSON: shop, amount, YYYY-MM-DD, currency, items"""
         
         response = model.generate_content([prompt, img])
         
-        raw = response.text.replace('```json', '').replace('```', '').strip()
-        result = json.loads(raw)
+        parsed = extract_json_payload(getattr(response, 'text', ''))
+        result = coerce_vlm_result(parsed, fallback_currency=country_info.get('currency'))
+        if not result:
+            st.session_state['vlm_error'] = f"模型輸出非結構化 JSON: {str(getattr(response, 'text', ''))[:300]}"
+            return None
         
         # 後處理：驗證日期合理性
         try:
-            raw_date = result.get("date")
-
-            normalized_date = normalize_receipt_date(raw_date, fallback_year=year)
-            date_candidates = get_ambiguous_date_options(raw_date, fallback_year=year)
-
+            normalized_date = normalize_receipt_date(result.get('date'), fallback_year=year)
             if normalized_date:
-                result["date"] = normalized_date
-                
-            result["日期歧義候選"] = date_candidates
-            
+                result['date'] = normalized_date
             date_str = result['date']
             parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
             
@@ -614,8 +688,9 @@ with tab_main:
                         
                         res = run_vlm_scan(active_key, img_bytes, target_year, target_country)
                         if res:
-                            # 防呆：模型可能回傳非 dict，避免 .get / [] 觸發 AttributeError
-                            if not isinstance(res, dict):
+                            # 防呆：再做一次容錯轉換，降低「格式異常」略過率
+                            res = coerce_vlm_result(res, fallback_currency=target_country.get('currency'))
+                            if not res:
                                 st.warning(f"⚠️ 第 {idx+1} 張辨識結果格式異常，已略過。")
                                 continue
 
@@ -633,7 +708,6 @@ with tab_main:
                             raw_date = res.get('date')
                             receipt_date = normalize_receipt_date(raw_date, fallback_year=target_year)
                             date_candidates = get_ambiguous_date_options(raw_date, fallback_year=target_year)
-                            receipt_date = normalize_receipt_date(res.get('date'), fallback_year=target_year)
                             if not receipt_date:
                                 # 如果格式錯誤，使用當天日期
                                 receipt_date = datetime.now().strftime("%Y-%m-%d")
@@ -647,7 +721,13 @@ with tab_main:
                                 # 信用卡模式或現金無預設 → 自動查詢
                                 exchange_rate = get_rate_by_date(res['currency'], receipt_date)
                             
-                            twd_amount = round(res['amount'] * exchange_rate, 0)
+                            try:
+                                amount_value = float(res['amount'])
+                            except:
+                                st.warning(f"⚠️ 第 {idx+1} 張金額格式異常，已略過。")
+                                continue
+
+                            twd_amount = round(amount_value * exchange_rate, 0)
                             
                             batch.append({
                                 "UID": uid,
@@ -655,7 +735,7 @@ with tab_main:
                                 "日期": receipt_date,  # 使用驗證過的日期
                                 "日期原始": str(raw_date) if raw_date is not None else "",
                                 "日期歧義候選": date_candidates,
-                                "外幣金額": res['amount'],
+                                "外幣金額": amount_value,
                                 "幣別": res['currency'],
                                 "匯率": round(exchange_rate, 4) if payment_method == "現金" else round(exchange_rate, 3),
                                 "台幣金額": twd_amount,
@@ -747,10 +827,12 @@ with tab_main:
                         raw_date = record.get('日期原始', '')
                         date_candidates = record.get('日期歧義候選', [])
                         selected_value = None
+                        candidate_values = []
                         if len(date_candidates) >= 2:
                             st.warning(f"⚠️ 偵測到日期歧義：{raw_date}")
                             labels = [label for _, label in date_candidates]
                             values = [value for value, _ in date_candidates]
+                            candidate_values = values
                             current_value = record['日期'] if record['日期'] in values else values[0]
                             selected_label = st.radio(
                                 "請確認日期解讀方式",
@@ -811,8 +893,18 @@ with tab_main:
                         submitted = st.form_submit_button("✅ 更新此筆資料", use_container_width=True)
                         
                         if submitted:
-                            # 若有日期歧義選項，提交時以 radio 選擇為最終日期（避免 form 內 date_input 舊值）
-                            final_date_str = selected_value if selected_value else new_date.strftime("%Y-%m-%d")
+                            manual_date_str = new_date.strftime("%Y-%m-%d")
+
+                            # 歧義日期：
+                            # 1) 若使用者手動改成候選之外的日期，尊重手動日期
+                            # 2) 否則使用 radio 選擇，避免 form 內 date_input 舊值覆蓋
+                            if selected_value:
+                                if candidate_values and manual_date_str not in set(candidate_values):
+                                    final_date_str = manual_date_str
+                                else:
+                                    final_date_str = selected_value
+                            else:
+                                final_date_str = manual_date_str
 
                             # 檢查是否有變更
                             date_changed = final_date_str != record['日期']
