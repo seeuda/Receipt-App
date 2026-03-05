@@ -1011,10 +1011,25 @@ with tab_main:
                         wks.batch_update(updates, value_input_option='USER_ENTERED')
 
                     if rows_to_append:
-                        required_rows = len(all_rows) + len(rows_to_append)
+                        # 新增列的起始位置採用保守估算，避免表格邊界判定異常造成覆蓋
+                        total_values_rows = len(all_rows)
+                        max_uid_row = max(uid_to_row.values(), default=0)
+                        col_a_values = wks.col_values(1)
+                        last_non_empty_col_a = len(col_a_values)
+
+                        existing_max_row = max(total_values_rows, max_uid_row, last_non_empty_col_a)
+                        start_row = existing_max_row + 1
+                        end_row = start_row + len(rows_to_append) - 1
+
+                        required_rows = end_row
                         if required_rows > wks.row_count:
                             wks.add_rows(required_rows - wks.row_count)
-                        wks.append_rows(rows_to_append, value_input_option='USER_ENTERED')
+
+                        wks.update(
+                            f"A{start_row}:M{end_row}",
+                            rows_to_append,
+                            value_input_option='USER_ENTERED'
+                        )
 
                     updated_count = len(updates)
                     appended_count = len(rows_to_append)
