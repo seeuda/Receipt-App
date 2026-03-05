@@ -700,8 +700,7 @@ with tab_main:
                                 st.warning(f"⚠️ 第 {idx+1} 張辨識欄位不完整，已略過。")
                                 continue
 
-                            # UID 只依據圖片內容（不包含使用者名稱）
-                            # 確保同一張照片無論誰上傳都是相同 UID
+                            # UID 只依據圖片內容，允許同一張單據重傳覆蓋
                             uid = hashlib.md5(img_bytes).hexdigest()[:12]
                             
                             # 確保日期格式正確
@@ -765,19 +764,31 @@ with tab_main:
                         if duplicate_count > 0:
                             st.info(f"ℹ️ 過濾掉 {duplicate_count} 張重複照片（同一次上傳內）")
                         
-                        # === 步驟 2: 與暫存區去重 ===
-                        existing_uids = {record['UID'] for record in st.session_state['data']}
-                        new_records = [record for record in deduplicated_batch if record['UID'] not in existing_uids]
-                        
-                        # === 步驟 3: 更新或覆蓋暫存區 ===
-                        if new_records:
-                            # 附加新資料
-                            st.session_state['data'].extend(new_records)
-                            # 更新圖片（使用 update 會覆蓋同 UID 的舊圖）
-                            st.session_state['uploaded_images'].update(images)
-                            st.success(f"✅ 新增 {len(new_records)} 筆辨識結果")
-                        else:
-                            st.warning("⚠️ 所有收據都已存在，未新增任何資料")
+                        # === 步驟 2: 與暫存區比對（同 UID 直接覆蓋舊辨識）===
+                        existing_uid_to_idx = {
+                            record['UID']: idx for idx, record in enumerate(st.session_state['data'])
+                        }
+
+                        added_count, replaced_count = 0, 0
+                        for record in deduplicated_batch:
+                            uid = record['UID']
+                            if uid in existing_uid_to_idx:
+                                st.session_state['data'][existing_uid_to_idx[uid]] = record
+                                replaced_count += 1
+                            else:
+                                st.session_state['data'].append(record)
+                                existing_uid_to_idx[uid] = len(st.session_state['data']) - 1
+                                added_count += 1
+
+                        # 圖片以 UID 為 key，新的會覆蓋舊的
+                        st.session_state['uploaded_images'].update(images)
+
+                        msg = []
+                        if added_count:
+                            msg.append(f"新增 {added_count} 筆")
+                        if replaced_count:
+                            msg.append(f"覆蓋 {replaced_count} 筆")
+                        st.success(f"✅ 辨識完成：{' / '.join(msg) if msg else '0 筆變更'}")
                         
                         st.rerun()
         
@@ -966,10 +977,10 @@ with tab_main:
 
                     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-                    updates = []         # 要覆蓋的
-                    rows_to_append = []  # 要新增的
+                    updated_count, appended_count = 0, 0
+                    next_row = len(all_rows) + 1
 
-                    # === 逐筆檢查 ===
+                    # === 逐筆檢查並立即 upsert（避免批次落差）===
                     for r in st.session_state['data']:
                         uid = str(r['UID']).strip()
 
@@ -986,31 +997,21 @@ with tab_main:
 
                         if uid in uid_to_row:
                             # UID 已存在 → 覆蓋該列的 A~L 欄（保留 M 欄 UID）
-                            # 效果：同一張收據的新辨識結果會覆蓋舊資料
                             rownum = uid_to_row[uid]
-                            updates.append({
-                                "range": f"A{rownum}:L{rownum}",
-                                "values": [row_values_A_to_L]
-                            })
+                            wks.update(f"A{rownum}:L{rownum}", [row_values_A_to_L], value_input_option='USER_ENTERED')
+                            updated_count += 1
                         else:
                             # UID 不存在 → 新增一列（包含 UID）
-                            rows_to_append.append(row_values_A_to_L + [uid])
-
-                    # === 批次執行 ===
-                    if updates:
-                        wks.batch_update(updates, value_input_option='USER_ENTERED')
-
-                    if rows_to_append:
-                        required_rows = len(all_rows) + len(rows_to_append)
-                        if required_rows > wks.row_count:
-                            wks.add_rows(required_rows - wks.row_count)
-                        wks.append_rows(rows_to_append, value_input_option='USER_ENTERED')
+                            wks.append_row(row_values_A_to_L + [uid], value_input_option='USER_ENTERED')
+                            uid_to_row[uid] = next_row
+                            next_row += 1
+                            appended_count += 1
 
                     msg = []
-                    if updates:
-                        msg.append(f"更新 {len(updates)} 筆")
-                    if rows_to_append:
-                        msg.append(f"新增 {len(rows_to_append)} 筆")
+                    if updated_count:
+                        msg.append(f"更新 {updated_count} 筆")
+                    if appended_count:
+                        msg.append(f"新增 {appended_count} 筆")
 
                     st.success(f"✅ 同步完成！{' / '.join(msg)}")
                     
