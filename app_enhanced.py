@@ -977,10 +977,10 @@ with tab_main:
 
                     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-                    updated_count, appended_count = 0, 0
-                    next_row = len(all_rows) + 1
+                    updates = []         # 要覆蓋的 A~L
+                    rows_to_append = []  # 要新增的 A~M
 
-                    # === 逐筆檢查並立即 upsert（避免批次落差）===
+                    # === 逐筆判斷 upsert（先收集，後批次寫入）===
                     for r in st.session_state['data']:
                         uid = str(r['UID']).strip()
 
@@ -998,14 +998,26 @@ with tab_main:
                         if uid in uid_to_row:
                             # UID 已存在 → 覆蓋該列的 A~L 欄（保留 M 欄 UID）
                             rownum = uid_to_row[uid]
-                            wks.update(f"A{rownum}:L{rownum}", [row_values_A_to_L], value_input_option='USER_ENTERED')
-                            updated_count += 1
+                            updates.append({
+                                "range": f"A{rownum}:L{rownum}",
+                                "values": [row_values_A_to_L]
+                            })
                         else:
                             # UID 不存在 → 新增一列（包含 UID）
-                            wks.append_row(row_values_A_to_L + [uid], value_input_option='USER_ENTERED')
-                            uid_to_row[uid] = next_row
-                            next_row += 1
-                            appended_count += 1
+                            rows_to_append.append(row_values_A_to_L + [uid])
+
+                    # === 批次寫入（降低 API call、避免中途半套）===
+                    if updates:
+                        wks.batch_update(updates, value_input_option='USER_ENTERED')
+
+                    if rows_to_append:
+                        required_rows = len(all_rows) + len(rows_to_append)
+                        if required_rows > wks.row_count:
+                            wks.add_rows(required_rows - wks.row_count)
+                        wks.append_rows(rows_to_append, value_input_option='USER_ENTERED')
+
+                    updated_count = len(updates)
+                    appended_count = len(rows_to_append)
 
                     msg = []
                     if updated_count:
