@@ -1011,10 +1011,13 @@ with tab_main:
                         wks.batch_update(updates, value_input_option='USER_ENTERED')
 
                     if rows_to_append:
-                        required_rows = len(all_rows) + len(rows_to_append)
-                        if required_rows > wks.row_count:
-                            wks.add_rows(required_rows - wks.row_count)
-                        wks.append_rows(rows_to_append, value_input_option='USER_ENTERED')
+                        # 使用 append API + INSERT_ROWS，避免固定範圍在併發同步時互相覆寫
+                        wks.append_rows(
+                            rows_to_append,
+                            value_input_option='USER_ENTERED',
+                            insert_data_option='INSERT_ROWS',
+                            table_range='A:M'
+                        )
 
                     updated_count = len(updates)
                     appended_count = len(rows_to_append)
