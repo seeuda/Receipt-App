@@ -204,8 +204,39 @@ def normalize_receipt_date(date_value, fallback_year=None):
         "dezember": "12", "dez": "12", "december": "12", "dec": "12",
     }
     lowered = compact_text.lower()
+
+    # 先保留文字月份型日期（避免 Mar 7, 2024 被誤轉成 03 7 2024 後走錯日月順序）
+    month_regex = "|".join(sorted((re.escape(k) for k in month_tokens.keys()), key=len, reverse=True))
+
+    month_first = re.search(rf"\b({month_regex})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,)?\s+(\d{{2,4}})\b", lowered)
+    if month_first:
+        month = int(month_tokens[month_first.group(1)])
+        day = int(month_first.group(2))
+        year = int(month_first.group(3))
+        if year < 100:
+            year = (2000 + year) if year <= 69 else (1900 + year)
+        candidate = _safe_date(year, month, day)
+        if candidate:
+            return candidate
+
+    day_first = re.search(rf"\b(\d{{1,2}})(?:st|nd|rd|th)?[ .\-/]+({month_regex})[ ,.-]+(\d{{2,4}})\b", lowered)
+    if day_first:
+        day = int(day_first.group(1))
+        month = int(month_tokens[day_first.group(2)])
+        year = int(day_first.group(3))
+        if year < 100:
+            year = (2000 + year) if year <= 69 else (1900 + year)
+        candidate = _safe_date(year, month, day)
+        if candidate:
+            return candidate
+
     for token, month_num in month_tokens.items():
         lowered = re.sub(rf"\b{re.escape(token)}\b", month_num, lowered)
+
+    # 關鍵詞附近日期優先（減少抓到票號/流水號）
+    keyword_match = re.search(r"(?i)(datum|date|invoice|rechnung|beleg)[^0-9]{0,24}(\d{1,2}[./-]\d{1,2}[./-]\d{2,4})", lowered)
+    if keyword_match:
+        lowered = keyword_match.group(2)
 
     # 若出現日期區間（例如 03.-07. juli 2024），優先取起始日期 03.07.2024
     range_match = re.search(r"\b(\d{1,2})\s*[.-]\s*[–—-]\s*(\d{1,2})\s*[.\-/ ]\s*(\d{1,2})\s*[.\-/ ]\s*(\d{2,4})\b", lowered)
@@ -218,11 +249,6 @@ def normalize_receipt_date(date_value, fallback_year=None):
         candidate = _safe_date(year, month, first_day)
         if candidate:
             return candidate
-
-    # 關鍵詞附近日期優先（減少抓到票號/流水號）
-    keyword_match = re.search(r"(?i)(datum|date|invoice|rechnung|beleg)[^0-9]{0,24}(\d{1,2}[./-]\d{1,2}[./-]\d{2,4})", lowered)
-    if keyword_match:
-        lowered = keyword_match.group(2)
 
     text = lowered
 
