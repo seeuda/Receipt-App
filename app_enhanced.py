@@ -187,6 +187,71 @@ def normalize_receipt_date(date_value, fallback_year=None):
     if not text:
         return None
 
+    # 先做輕量前處理：移除多餘空白、統一分隔符、轉換常見月份字詞（德文/英文）
+    compact_text = re.sub(r"\s+", " ", text)
+    month_tokens = {
+        "januar": "01", "jan": "01", "january": "01",
+        "februar": "02", "feb": "02", "february": "02",
+        "märz": "03", "maerz": "03", "marz": "03", "march": "03", "mar": "03",
+        "april": "04", "apr": "04",
+        "mai": "05", "may": "05",
+        "juni": "06", "jun": "06", "june": "06",
+        "juli": "07", "jul": "07", "july": "07",
+        "august": "08", "aug": "08",
+        "september": "09", "sep": "09", "sept": "09",
+        "oktober": "10", "okt": "10", "october": "10", "oct": "10",
+        "november": "11", "nov": "11",
+        "dezember": "12", "dez": "12", "december": "12", "dec": "12",
+    }
+    lowered = compact_text.lower()
+
+    # 先保留文字月份型日期（避免 Mar 7, 2024 被誤轉成 03 7 2024 後走錯日月順序）
+    month_regex = "|".join(sorted((re.escape(k) for k in month_tokens.keys()), key=len, reverse=True))
+
+    month_first = re.search(rf"\b({month_regex})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,)?\s+(\d{{2,4}})\b", lowered)
+    if month_first:
+        month = int(month_tokens[month_first.group(1)])
+        day = int(month_first.group(2))
+        year = int(month_first.group(3))
+        if year < 100:
+            year = (2000 + year) if year <= 69 else (1900 + year)
+        candidate = _safe_date(year, month, day)
+        if candidate:
+            return candidate
+
+    day_first = re.search(rf"\b(\d{{1,2}})(?:st|nd|rd|th)?[ .\-/]+({month_regex})[ ,.-]+(\d{{2,4}})\b", lowered)
+    if day_first:
+        day = int(day_first.group(1))
+        month = int(month_tokens[day_first.group(2)])
+        year = int(day_first.group(3))
+        if year < 100:
+            year = (2000 + year) if year <= 69 else (1900 + year)
+        candidate = _safe_date(year, month, day)
+        if candidate:
+            return candidate
+
+    for token, month_num in month_tokens.items():
+        lowered = re.sub(rf"\b{re.escape(token)}\b", month_num, lowered)
+
+    # 關鍵詞附近日期優先（減少抓到票號/流水號）
+    keyword_match = re.search(r"(?i)(datum|date|invoice|rechnung|beleg)[^0-9]{0,24}(\d{1,2}[./-]\d{1,2}[./-]\d{2,4})", lowered)
+    if keyword_match:
+        lowered = keyword_match.group(2)
+
+    # 若出現日期區間（例如 03.-07. juli 2024），優先取起始日期 03.07.2024
+    range_match = re.search(r"\b(\d{1,2})\s*[.-]\s*[–—-]\s*(\d{1,2})\s*[.\-/ ]\s*(\d{1,2})\s*[.\-/ ]\s*(\d{2,4})\b", lowered)
+    if range_match:
+        first_day = int(range_match.group(1))
+        month = int(range_match.group(3))
+        year = int(range_match.group(4))
+        if year < 100:
+            year = (2000 + year) if year <= 69 else (1900 + year)
+        candidate = _safe_date(year, month, first_day)
+        if candidate:
+            return candidate
+
+    text = lowered
+
     candidate_formats = [
         "%d-%m-%Y", "%d/%m/%Y", "%d.%m.%Y",
         "%d-%m-%y", "%d/%m/%y", "%d.%m.%y",
@@ -497,7 +562,8 @@ def run_vlm_scan(api_key, image_bytes, year, country_info):
         # ❌ "Extract", "Return", "Country", "Decimal" 等
         # ✅ 只給幣別和年份
         prompt = f"""{country_info['currency']} {year}
-JSON: shop, amount, YYYY-MM-DD, currency, items"""
+JSON: shop, amount, YYYY-MM-DD, currency, items
+Date rules: use transaction/invoice date only; ignore service period/date range; if year is missing, use {year}."""
         
         response = model.generate_content([prompt, img])
         
