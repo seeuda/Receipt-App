@@ -1,0 +1,296 @@
+{
+  "version": "1.0",
+  "default": {
+    "date_order": "DMY",
+    "date_separators": [".", "/", "-"],
+    "decimal_separator": ".",
+    "thousands_separator": ",",
+    "currency_symbols": [],
+    "date_keywords": ["date", "invoice", "receipt"],
+    "month_aliases": {
+      "jan": "01", "january": "01",
+      "feb": "02", "february": "02",
+      "mar": "03", "march": "03",
+      "apr": "04", "april": "04",
+      "may": "05",
+      "jun": "06", "june": "06",
+      "jul": "07", "july": "07",
+      "aug": "08", "august": "08",
+      "sep": "09", "sept": "09", "september": "09",
+      "oct": "10", "october": "10",
+      "nov": "11", "november": "11",
+      "dec": "12", "december": "12"
+    }
+  },
+  "countries": {
+    "de": {
+      "name": "Germany",
+      "date_order": "DMY",
+      "date_separators": [".", "/", "-"],
+      "decimal_separator": ",",
+      "thousands_separator": ".",
+      "currency_symbols": ["€", "EUR"],
+      "date_keywords": ["datum", "beleg", "rechnung", "kasse", "uhr"],
+      "month_aliases": {
+        "januar": "01", "jan": "01",
+        "februar": "02", "feb": "02",
+        "märz": "03", "maerz": "03", "marz": "03",
+        "april": "04", "apr": "04",
+        "mai": "05",
+        "juni": "06", "jun": "06",
+        "juli": "07", "jul": "07",
+        "august": "08", "aug": "08",
+        "september": "09", "sep": "09",
+        "oktober": "10", "okt": "10",
+        "november": "11", "nov": "11",
+        "dezember": "12", "dez": "12"
+      }
+    },
+    "dk": {
+      "name": "Denmark",
+      "date_order": "DMY",
+      "date_separators": ["-", ".", "/"],
+      "decimal_separator": ",",
+      "thousands_separator": ".",
+      "currency_symbols": ["kr", "DKK"],
+      "date_keywords": ["dato", "faktura", "kvittering"],
+      "month_aliases": {
+        "januar": "01", "februar": "02", "marts": "03", "april": "04", "maj": "05",
+        "juni": "06", "juli": "07", "august": "08", "september": "09", "oktober": "10",
+        "november": "11", "december": "12"
+      }
+    },
+    "es": {
+      "name": "Spain",
+      "date_order": "DMY",
+      "date_separators": ["/", "-", "."],
+      "decimal_separator": ",",
+      "thousands_separator": ".",
+      "currency_symbols": ["€", "EUR"],
+      "date_keywords": ["fecha", "factura", "ticket"],
+      "month_aliases": {
+        "enero": "01", "febrero": "02", "marzo": "03", "abril": "04", "mayo": "05",
+        "junio": "06", "julio": "07", "agosto": "08", "septiembre": "09",
+        "octubre": "10", "noviembre": "11", "diciembre": "12"
+      }
+    },
+    "at": {
+      "name": "Austria",
+      "date_order": "DMY",
+      "date_separators": [".", "/", "-"],
+      "decimal_separator": ",",
+      "thousands_separator": ".",
+      "currency_symbols": ["€", "EUR"],
+      "date_keywords": ["datum", "beleg", "rechnung"],
+      "month_aliases": {
+        "jänner": "01", "januar": "01", "februar": "02", "märz": "03", "maerz": "03",
+        "april": "04", "mai": "05", "juni": "06", "juli": "07", "august": "08",
+        "september": "09", "oktober": "10", "november": "11", "dezember": "12"
+      }
+    },
+    "cz": {
+      "name": "Czech Republic",
+      "date_order": "DMY",
+      "date_separators": [".", "/", "-"],
+      "decimal_separator": ",",
+      "thousands_separator": " ",
+      "currency_symbols": ["Kč", "CZK"],
+      "date_keywords": ["datum", "daňový doklad", "účtenka"],
+      "month_aliases": {
+        "leden": "01", "únor": "02", "brezen": "03", "duben": "04", "květen": "05",
+        "červen": "06", "červenec": "07", "srpen": "08", "září": "09",
+        "říjen": "10", "listopad": "11", "prosinec": "12"
+      }
+    },
+    "jp": {
+      "name": "Japan",
+      "date_order": "YMD",
+      "date_separators": ["/", "-", ".", "年"],
+      "decimal_separator": ".",
+      "thousands_separator": ",",
+      "currency_symbols": ["¥", "JPY", "円"],
+      "date_keywords": ["日付", "発行日", "領収書", "請求日", "年月日"],
+      "month_aliases": {
+        "1月": "01", "2月": "02", "3月": "03", "4月": "04", "5月": "05", "6月": "06",
+        "7月": "07", "8月": "08", "9月": "09", "10月": "10", "11月": "11", "12月": "12"
+      }
+    },
+    "us": {
+      "name": "United States",
+      "date_order": "MDY",
+      "date_separators": ["/", "-", "."],
+      "decimal_separator": ".",
+      "thousands_separator": ",",
+      "currency_symbols": ["$", "USD"],
+      "date_keywords": ["date", "invoice date", "receipt"],
+      "month_aliases": {}
+    },
+    "gb": {
+      "name": "United Kingdom",
+      "date_order": "DMY",
+      "date_separators": ["/", "-", "."],
+      "decimal_separator": ".",
+      "thousands_separator": ",",
+      "currency_symbols": ["£", "GBP"],
+      "date_keywords": ["date", "invoice", "receipt"],
+      "month_aliases": {}
+    },
+    "fr": {
+      "name": "France",
+      "date_order": "DMY",
+      "date_separators": ["/", "-", "."],
+      "decimal_separator": ",",
+      "thousands_separator": " ",
+      "currency_symbols": ["€", "EUR"],
+      "date_keywords": ["date", "facture", "ticket"],
+      "month_aliases": {
+        "janvier": "01", "février": "02", "mars": "03", "avril": "04", "mai": "05",
+        "juin": "06", "juillet": "07", "août": "08", "septembre": "09",
+        "octobre": "10", "novembre": "11", "décembre": "12"
+      }
+    },
+    "it": {
+      "name": "Italy",
+      "date_order": "DMY",
+      "date_separators": ["/", "-", "."],
+      "decimal_separator": ",",
+      "thousands_separator": ".",
+      "currency_symbols": ["€", "EUR"],
+      "date_keywords": ["data", "fattura", "scontrino"],
+      "month_aliases": {
+        "gennaio": "01", "febbraio": "02", "marzo": "03", "aprile": "04", "maggio": "05",
+        "giugno": "06", "luglio": "07", "agosto": "08", "settembre": "09",
+        "ottobre": "10", "novembre": "11", "dicembre": "12"
+      }
+    },
+    "nl": {
+      "name": "Netherlands",
+      "date_order": "DMY",
+      "date_separators": ["-", "/", "."],
+      "decimal_separator": ",",
+      "thousands_separator": ".",
+      "currency_symbols": ["€", "EUR"],
+      "date_keywords": ["datum", "factuur", "bon"],
+      "month_aliases": {
+        "januari": "01", "februari": "02", "maart": "03", "april": "04", "mei": "05",
+        "juni": "06", "juli": "07", "augustus": "08", "september": "09",
+        "oktober": "10", "november": "11", "december": "12"
+      }
+    },
+    "se": {
+      "name": "Sweden",
+      "date_order": "YMD",
+      "date_separators": ["-", "/", "."],
+      "decimal_separator": ",",
+      "thousands_separator": " ",
+      "currency_symbols": ["kr", "SEK"],
+      "date_keywords": ["datum", "faktura", "kvitto"],
+      "month_aliases": {
+        "januari": "01", "februari": "02", "mars": "03", "april": "04", "maj": "05",
+        "juni": "06", "juli": "07", "augusti": "08", "september": "09",
+        "oktober": "10", "november": "11", "december": "12"
+      }
+    },
+    "no": {
+      "name": "Norway",
+      "date_order": "DMY",
+      "date_separators": [".", "-", "/"],
+      "decimal_separator": ",",
+      "thousands_separator": " ",
+      "currency_symbols": ["kr", "NOK"],
+      "date_keywords": ["dato", "faktura", "kvittering"],
+      "month_aliases": {
+        "januar": "01", "februar": "02", "mars": "03", "april": "04", "mai": "05",
+        "juni": "06", "juli": "07", "august": "08", "september": "09",
+        "oktober": "10", "november": "11", "desember": "12"
+      }
+    },
+    "fi": {
+      "name": "Finland",
+      "date_order": "DMY",
+      "date_separators": [".", "-", "/"],
+      "decimal_separator": ",",
+      "thousands_separator": " ",
+      "currency_symbols": ["€", "EUR"],
+      "date_keywords": ["päiväys", "lasku", "kuitti"],
+      "month_aliases": {
+        "tammikuu": "01", "helmikuu": "02", "maaliskuu": "03", "huhtikuu": "04", "toukokuu": "05",
+        "kesäkuu": "06", "heinäkuu": "07", "elokuu": "08", "syyskuu": "09",
+        "lokakuu": "10", "marraskuu": "11", "joulukuu": "12"
+      }
+    },
+    "pl": {
+      "name": "Poland",
+      "date_order": "DMY",
+      "date_separators": [".", "-", "/"],
+      "decimal_separator": ",",
+      "thousands_separator": " ",
+      "currency_symbols": ["zł", "PLN"],
+      "date_keywords": ["data", "faktura", "paragon"],
+      "month_aliases": {
+        "styczeń": "01", "luty": "02", "marzec": "03", "kwiecień": "04", "maj": "05",
+        "czerwiec": "06", "lipiec": "07", "sierpień": "08", "wrzesień": "09",
+        "październik": "10", "listopad": "11", "grudzień": "12"
+      }
+    },
+    "cn": {
+      "name": "China",
+      "date_order": "YMD",
+      "date_separators": ["-", "/", ".", "年"],
+      "decimal_separator": ".",
+      "thousands_separator": ",",
+      "currency_symbols": ["¥", "CNY", "RMB", "元"],
+      "date_keywords": ["日期", "开票日期", "发票"],
+      "month_aliases": {
+        "1月": "01", "2月": "02", "3月": "03", "4月": "04", "5月": "05", "6月": "06",
+        "7月": "07", "8月": "08", "9月": "09", "10月": "10", "11月": "11", "12月": "12"
+      }
+    },
+    "kr": {
+      "name": "South Korea",
+      "date_order": "YMD",
+      "date_separators": ["-", "/", ".", "년"],
+      "decimal_separator": ".",
+      "thousands_separator": ",",
+      "currency_symbols": ["₩", "KRW", "원"],
+      "date_keywords": ["날짜", "영수증", "청구서"],
+      "month_aliases": {
+        "1월": "01", "2월": "02", "3월": "03", "4월": "04", "5월": "05", "6월": "06",
+        "7월": "07", "8월": "08", "9월": "09", "10월": "10", "11월": "11", "12월": "12"
+      }
+    },
+    "tw": {
+      "name": "Taiwan",
+      "date_order": "YMD",
+      "date_separators": ["-", "/", ".", "年"],
+      "decimal_separator": ".",
+      "thousands_separator": ",",
+      "currency_symbols": ["NT$", "TWD", "元"],
+      "date_keywords": ["日期", "發票日期", "交易日期"],
+      "month_aliases": {
+        "1月": "01", "2月": "02", "3月": "03", "4月": "04", "5月": "05", "6月": "06",
+        "7月": "07", "8月": "08", "9月": "09", "10月": "10", "11月": "11", "12月": "12"
+      }
+    },
+    "sg": {
+      "name": "Singapore",
+      "date_order": "DMY",
+      "date_separators": ["/", "-", "."],
+      "decimal_separator": ".",
+      "thousands_separator": ",",
+      "currency_symbols": ["S$", "SGD"],
+      "date_keywords": ["date", "tax invoice", "receipt"],
+      "month_aliases": {}
+    },
+    "au": {
+      "name": "Australia",
+      "date_order": "DMY",
+      "date_separators": ["/", "-", "."],
+      "decimal_separator": ".",
+      "thousands_separator": ",",
+      "currency_symbols": ["A$", "AUD"],
+      "date_keywords": ["date", "tax invoice", "receipt"],
+      "month_aliases": {}
+    }
+  }
+}
