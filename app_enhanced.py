@@ -94,13 +94,15 @@ def coerce_vlm_result(payload, fallback_currency=None):
                 break
 
     # amount 欄位容錯（優先總額語義欄位，避免抓到第一個品項單價）
-    if 'amount' not in result:
+    parsed_amount = _parse_amount(result.get('amount'))
+    if parsed_amount is None:
         for key in ('total', 'total_amount', 'grand_total', 'sum', 'summe', 'gesamtbetrag', 'zu_zahlen'):
             if key in result and str(result.get(key, '')).strip():
-                result['amount'] = result[key]
-                break
+                fallback_amount = _parse_amount(result.get(key))
+                if fallback_amount is not None:
+                    parsed_amount = fallback_amount
+                    break
 
-    parsed_amount = _parse_amount(result.get('amount'))
     if parsed_amount is not None:
         result['amount'] = parsed_amount
 
@@ -229,6 +231,18 @@ def normalize_receipt_date(date_value, fallback_year=None):
 
     # 先保留文字月份型日期（避免 Mar 7, 2024 被誤轉成 03 7 2024 後走錯日月順序）
     month_regex = "|".join(sorted((re.escape(k) for k in month_tokens.keys()), key=len, reverse=True))
+
+    # 先處理文字月份日期區間（例如 03.-07. juli 2024），避免被 day_first 誤判成 07 juli 2024
+    text_range = re.search(rf"\b(\d{{1,2}})\s*[.-]\s*[–—-]\s*(\d{{1,2}})\s*[.\-/ ]+({month_regex})[ ,.-]+(\d{{2,4}})\b", lowered)
+    if text_range:
+        first_day = int(text_range.group(1))
+        month = int(month_tokens[text_range.group(3)])
+        year = int(text_range.group(4))
+        if year < 100:
+            year = (2000 + year) if year <= 69 else (1900 + year)
+        candidate = _safe_date(year, month, first_day)
+        if candidate:
+            return candidate
 
     month_first = re.search(rf"\b({month_regex})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,)?\s+(\d{{2,4}})\b", lowered)
     if month_first:
