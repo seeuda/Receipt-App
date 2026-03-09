@@ -60,27 +60,49 @@ def coerce_vlm_result(payload, fallback_currency=None):
 
     result = dict(payload)
 
+    def _parse_amount(value):
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        text = str(value).strip()
+        if not text:
+            return None
+        text = re.sub(r"[^\d,.-]", "", text)
+        if not text:
+            return None
+        if text.count(',') == 1 and text.count('.') == 0:
+            text = text.replace(',', '.')
+        elif text.count(',') > 1 and text.count('.') == 0:
+            text = text.replace('.', '').replace(',', '.')
+        elif text.count(',') >= 1 and text.count('.') >= 1:
+            # 同時出現時，視為歐洲格式 1.234,56
+            if text.rfind(',') > text.rfind('.'):
+                text = text.replace('.', '').replace(',', '.')
+            else:
+                text = text.replace(',', '')
+        try:
+            return float(text)
+        except:
+            return None
+
     # shop 欄位容錯
     if 'shop' not in result:
-        for key in ('store', 'merchant', 'shop_name'):
+        for key in ('store', 'merchant', 'shop_name', 'vendor'):
             if key in result:
                 result['shop'] = result[key]
                 break
 
-    # amount 欄位容錯（支援 "78,00"、"€78.00"）
-    if 'amount' in result and isinstance(result['amount'], str):
-        amount_text = result['amount'].strip()
-        amount_text = re.sub(r"[^\d,.-]", "", amount_text)
-        if amount_text.count(',') == 1 and amount_text.count('.') == 0:
-            amount_text = amount_text.replace(',', '.')
-        elif amount_text.count(',') > 1 and amount_text.count('.') == 0:
-            amount_text = amount_text.replace('.', '').replace(',', '.')
-        elif amount_text.count(',') >= 1 and amount_text.count('.') >= 1:
-            amount_text = amount_text.replace(',', '')
-        try:
-            result['amount'] = float(amount_text)
-        except:
-            pass
+    # amount 欄位容錯（優先總額語義欄位，避免抓到第一個品項單價）
+    if 'amount' not in result:
+        for key in ('total', 'total_amount', 'grand_total', 'sum', 'summe', 'gesamtbetrag', 'zu_zahlen'):
+            if key in result and str(result.get(key, '')).strip():
+                result['amount'] = result[key]
+                break
+
+    parsed_amount = _parse_amount(result.get('amount'))
+    if parsed_amount is not None:
+        result['amount'] = parsed_amount
 
     # currency 容錯
     cur = result.get('currency')
@@ -116,7 +138,7 @@ def normalize_items(items_value):
                     normalized_items.append(text)
             elif isinstance(item, dict):
                 # 字典項目（包含描述、數量、價格等）
-                desc = str(item.get("description", "")).strip()
+                desc = str(item.get("description") or item.get("name") or item.get("item") or item.get("product") or item.get("text") or "").strip()
                 qty = item.get("quantity")
                 price = item.get("price")
                 unit_price = item.get("unit_price")
@@ -143,7 +165,7 @@ def normalize_items(items_value):
     
     # 如果是字典（單一品項）
     if isinstance(items_value, dict):
-        desc = str(items_value.get("description", "")).strip()
+        desc = str(items_value.get("description") or items_value.get("name") or items_value.get("item") or items_value.get("product") or items_value.get("text") or "").strip()
         qty = items_value.get("quantity")
         price = items_value.get("price")
         
@@ -186,6 +208,71 @@ def normalize_receipt_date(date_value, fallback_year=None):
     text = str(date_value).strip()
     if not text:
         return None
+
+    # 先做輕量前處理：移除多餘空白、統一分隔符、轉換常見月份字詞（德文/英文）
+    compact_text = re.sub(r"\s+", " ", text)
+    month_tokens = {
+        "januar": "01", "jan": "01", "january": "01",
+        "februar": "02", "feb": "02", "february": "02",
+        "märz": "03", "maerz": "03", "marz": "03", "march": "03", "mar": "03",
+        "april": "04", "apr": "04",
+        "mai": "05", "may": "05",
+        "juni": "06", "jun": "06", "june": "06",
+        "juli": "07", "jul": "07", "july": "07",
+        "august": "08", "aug": "08",
+        "september": "09", "sep": "09", "sept": "09",
+        "oktober": "10", "okt": "10", "october": "10", "oct": "10",
+        "november": "11", "nov": "11",
+        "dezember": "12", "dez": "12", "december": "12", "dec": "12",
+    }
+    lowered = compact_text.lower()
+
+    # 先保留文字月份型日期（避免 Mar 7, 2024 被誤轉成 03 7 2024 後走錯日月順序）
+    month_regex = "|".join(sorted((re.escape(k) for k in month_tokens.keys()), key=len, reverse=True))
+
+    month_first = re.search(rf"\b({month_regex})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,)?\s+(\d{{2,4}})\b", lowered)
+    if month_first:
+        month = int(month_tokens[month_first.group(1)])
+        day = int(month_first.group(2))
+        year = int(month_first.group(3))
+        if year < 100:
+            year = (2000 + year) if year <= 69 else (1900 + year)
+        candidate = _safe_date(year, month, day)
+        if candidate:
+            return candidate
+
+    day_first = re.search(rf"\b(\d{{1,2}})(?:st|nd|rd|th)?[ .\-/]+({month_regex})[ ,.-]+(\d{{2,4}})\b", lowered)
+    if day_first:
+        day = int(day_first.group(1))
+        month = int(month_tokens[day_first.group(2)])
+        year = int(day_first.group(3))
+        if year < 100:
+            year = (2000 + year) if year <= 69 else (1900 + year)
+        candidate = _safe_date(year, month, day)
+        if candidate:
+            return candidate
+
+    for token, month_num in month_tokens.items():
+        lowered = re.sub(rf"\b{re.escape(token)}\b", month_num, lowered)
+
+    # 關鍵詞附近日期優先（減少抓到票號/流水號）
+    keyword_match = re.search(r"(?i)(datum|date|invoice|rechnung|beleg|rnr|bon|kasse)[^\n]{0,64}?(\d{1,2}\s*[./-]\s*\d{1,2}\s*[./-]\s*\d{2,4})", lowered)
+    if keyword_match:
+        lowered = re.sub(r"\s*([./-])\s*", r"\1", keyword_match.group(2))
+
+    # 若出現日期區間（例如 03.-07. juli 2024），優先取起始日期 03.07.2024
+    range_match = re.search(r"\b(\d{1,2})\s*[.-]\s*[–—-]\s*(\d{1,2})\s*[.\-/ ]\s*(\d{1,2})\s*[.\-/ ]\s*(\d{2,4})\b", lowered)
+    if range_match:
+        first_day = int(range_match.group(1))
+        month = int(range_match.group(3))
+        year = int(range_match.group(4))
+        if year < 100:
+            year = (2000 + year) if year <= 69 else (1900 + year)
+        candidate = _safe_date(year, month, first_day)
+        if candidate:
+            return candidate
+
+    text = lowered
 
     candidate_formats = [
         "%d-%m-%Y", "%d/%m/%Y", "%d.%m.%Y",
@@ -497,7 +584,8 @@ def run_vlm_scan(api_key, image_bytes, year, country_info):
         # ❌ "Extract", "Return", "Country", "Decimal" 等
         # ✅ 只給幣別和年份
         prompt = f"""{country_info['currency']} {year}
-JSON: shop, amount, YYYY-MM-DD, currency, items"""
+JSON: shop, amount, YYYY-MM-DD, currency, items
+Date rules: use transaction/invoice date only; ignore service period/date range and processing timestamps; if year is missing, use {year}. Amount must be the payable total (e.g., Gesamtbetrag/Summe/Zu zahlen/Total), not a single item price. For items, return up to 5 line-items and include description whenever visible."""
         
         response = model.generate_content([prompt, img])
         
@@ -1011,10 +1099,13 @@ with tab_main:
                         wks.batch_update(updates, value_input_option='USER_ENTERED')
 
                     if rows_to_append:
-                        required_rows = len(all_rows) + len(rows_to_append)
-                        if required_rows > wks.row_count:
-                            wks.add_rows(required_rows - wks.row_count)
-                        wks.append_rows(rows_to_append, value_input_option='USER_ENTERED')
+                        # 使用 append API + INSERT_ROWS，避免固定範圍在併發同步時互相覆寫
+                        wks.append_rows(
+                            rows_to_append,
+                            value_input_option='USER_ENTERED',
+                            insert_data_option='INSERT_ROWS',
+                            table_range='A:M'
+                        )
 
                     updated_count = len(updates)
                     appended_count = len(rows_to_append)
