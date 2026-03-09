@@ -35,6 +35,18 @@ Receipt-App 是一套以 **Streamlit + Google 生態系 API** 打造的收據登
 └── 版本更新說明文件（V4.8.0~V4.9.2）
 ```
 
+## Debug Logs（新增）
+
+系統會自動建立 `logs/` 目錄，協助追查辨識與同步問題：
+
+- `logs/image/`：原始上傳圖片（以 UID 命名）
+- `logs/events/YYYY-MM-DD.jsonl`：事件紀錄，包含
+  - `ai_output`
+  - `final_output`
+  - `sheet_row`
+
+可用來快速比對「模型輸出 → 最終寫入資料 → 寫入 Sheet payload」。
+
 ---
 
 ## 執行前準備
