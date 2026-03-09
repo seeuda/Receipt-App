@@ -60,27 +60,49 @@ def coerce_vlm_result(payload, fallback_currency=None):
 
     result = dict(payload)
 
+    def _parse_amount(value):
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        text = str(value).strip()
+        if not text:
+            return None
+        text = re.sub(r"[^\d,.-]", "", text)
+        if not text:
+            return None
+        if text.count(',') == 1 and text.count('.') == 0:
+            text = text.replace(',', '.')
+        elif text.count(',') > 1 and text.count('.') == 0:
+            text = text.replace('.', '').replace(',', '.')
+        elif text.count(',') >= 1 and text.count('.') >= 1:
+            # 同時出現時，視為歐洲格式 1.234,56
+            if text.rfind(',') > text.rfind('.'):
+                text = text.replace('.', '').replace(',', '.')
+            else:
+                text = text.replace(',', '')
+        try:
+            return float(text)
+        except:
+            return None
+
     # shop 欄位容錯
     if 'shop' not in result:
-        for key in ('store', 'merchant', 'shop_name'):
+        for key in ('store', 'merchant', 'shop_name', 'vendor'):
             if key in result:
                 result['shop'] = result[key]
                 break
 
-    # amount 欄位容錯（支援 "78,00"、"€78.00"）
-    if 'amount' in result and isinstance(result['amount'], str):
-        amount_text = result['amount'].strip()
-        amount_text = re.sub(r"[^\d,.-]", "", amount_text)
-        if amount_text.count(',') == 1 and amount_text.count('.') == 0:
-            amount_text = amount_text.replace(',', '.')
-        elif amount_text.count(',') > 1 and amount_text.count('.') == 0:
-            amount_text = amount_text.replace('.', '').replace(',', '.')
-        elif amount_text.count(',') >= 1 and amount_text.count('.') >= 1:
-            amount_text = amount_text.replace(',', '')
-        try:
-            result['amount'] = float(amount_text)
-        except:
-            pass
+    # amount 欄位容錯（優先總額語義欄位，避免抓到第一個品項單價）
+    if 'amount' not in result:
+        for key in ('total', 'total_amount', 'grand_total', 'sum', 'summe', 'gesamtbetrag', 'zu_zahlen'):
+            if key in result and str(result.get(key, '')).strip():
+                result['amount'] = result[key]
+                break
+
+    parsed_amount = _parse_amount(result.get('amount'))
+    if parsed_amount is not None:
+        result['amount'] = parsed_amount
 
     # currency 容錯
     cur = result.get('currency')
@@ -116,7 +138,7 @@ def normalize_items(items_value):
                     normalized_items.append(text)
             elif isinstance(item, dict):
                 # 字典項目（包含描述、數量、價格等）
-                desc = str(item.get("description", "")).strip()
+                desc = str(item.get("description") or item.get("name") or item.get("item") or item.get("product") or item.get("text") or "").strip()
                 qty = item.get("quantity")
                 price = item.get("price")
                 unit_price = item.get("unit_price")
@@ -143,7 +165,7 @@ def normalize_items(items_value):
     
     # 如果是字典（單一品項）
     if isinstance(items_value, dict):
-        desc = str(items_value.get("description", "")).strip()
+        desc = str(items_value.get("description") or items_value.get("name") or items_value.get("item") or items_value.get("product") or items_value.get("text") or "").strip()
         qty = items_value.get("quantity")
         price = items_value.get("price")
         
@@ -234,9 +256,9 @@ def normalize_receipt_date(date_value, fallback_year=None):
         lowered = re.sub(rf"\b{re.escape(token)}\b", month_num, lowered)
 
     # 關鍵詞附近日期優先（減少抓到票號/流水號）
-    keyword_match = re.search(r"(?i)(datum|date|invoice|rechnung|beleg)[^0-9]{0,24}(\d{1,2}[./-]\d{1,2}[./-]\d{2,4})", lowered)
+    keyword_match = re.search(r"(?i)(datum|date|invoice|rechnung|beleg|rnr|bon|kasse)[^\n]{0,64}?(\d{1,2}\s*[./-]\s*\d{1,2}\s*[./-]\s*\d{2,4})", lowered)
     if keyword_match:
-        lowered = keyword_match.group(2)
+        lowered = re.sub(r"\s*([./-])\s*", r"\1", keyword_match.group(2))
 
     # 若出現日期區間（例如 03.-07. juli 2024），優先取起始日期 03.07.2024
     range_match = re.search(r"\b(\d{1,2})\s*[.-]\s*[–—-]\s*(\d{1,2})\s*[.\-/ ]\s*(\d{1,2})\s*[.\-/ ]\s*(\d{2,4})\b", lowered)
@@ -563,7 +585,7 @@ def run_vlm_scan(api_key, image_bytes, year, country_info):
         # ✅ 只給幣別和年份
         prompt = f"""{country_info['currency']} {year}
 JSON: shop, amount, YYYY-MM-DD, currency, items
-Date rules: use transaction/invoice date only; ignore service period/date range; if year is missing, use {year}."""
+Date rules: use transaction/invoice date only; ignore service period/date range and processing timestamps; if year is missing, use {year}. Amount must be the payable total (e.g., Gesamtbetrag/Summe/Zu zahlen/Total), not a single item price. For items, return up to 5 line-items and include description whenever visible."""
         
         response = model.generate_content([prompt, img])
         
