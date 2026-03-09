@@ -23,8 +23,12 @@ LOG_ROOT = Path("logs")
 
 def ensure_log_dirs():
     """建立 debug logs 目錄結構。"""
-    (LOG_ROOT / "image").mkdir(parents=True, exist_ok=True)
-    (LOG_ROOT / "events").mkdir(parents=True, exist_ok=True)
+    try:
+        (LOG_ROOT / "image").mkdir(parents=True, exist_ok=True)
+        (LOG_ROOT / "events").mkdir(parents=True, exist_ok=True)
+        return True
+    except Exception:
+        return False
 
 
 def _json_default(value):
@@ -35,27 +39,34 @@ def _json_default(value):
 
 def append_event_log(event_type, payload):
     """將事件以 JSONL 方式寫入 logs/events。"""
-    ensure_log_dirs()
-    now = datetime.now()
-    log_file = LOG_ROOT / "events" / f"{now.strftime('%Y-%m-%d')}.jsonl"
-    record = {
-        "timestamp": now.strftime("%Y-%m-%d %H:%M:%S"),
-        "event_type": event_type,
-        "payload": payload,
-    }
-    with open(log_file, "a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False, default=_json_default) + "\n")
+    try:
+        if not ensure_log_dirs():
+            return False
+        now = datetime.now()
+        log_file = LOG_ROOT / "events" / f"{now.strftime('%Y-%m-%d')}.jsonl"
+        record = {
+            "timestamp": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "event_type": event_type,
+            "payload": payload,
+        }
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False, default=_json_default) + "\n")
+        return True
+    except Exception:
+        return False
 
 
 def log_receipt_debug(uid, image_bytes=None, filename="receipt.bin", ai_output=None, final_output=None):
     """針對單張收據落地 image / AI output / final output。"""
-    ext = Path(filename).suffix.lower() or ".bin"
-    safe_ext = ext if re.fullmatch(r"\.[a-z0-9]+", ext) else ".bin"
-    if image_bytes:
-        ensure_log_dirs()
-        image_path = LOG_ROOT / "image" / f"{uid}{safe_ext}"
-        if not image_path.exists():
-            image_path.write_bytes(image_bytes)
+    try:
+        ext = Path(filename).suffix.lower() or ".bin"
+        safe_ext = ext if re.fullmatch(r"\.[a-z0-9]+", ext) else ".bin"
+        if image_bytes and ensure_log_dirs():
+            image_path = LOG_ROOT / "image" / f"{uid}{safe_ext}"
+            if not image_path.exists():
+                image_path.write_bytes(image_bytes)
+    except Exception:
+        pass
 
     if ai_output is not None:
         append_event_log("ai_output", {"uid": uid, "data": ai_output})
@@ -65,7 +76,7 @@ def log_receipt_debug(uid, image_bytes=None, filename="receipt.bin", ai_output=N
 
 def log_sheet_row(uid, row_values, action, rownum=None):
     """記錄寫入 Google Sheet 的 row payload。"""
-    append_event_log(
+    return append_event_log(
         "sheet_row",
         {
             "uid": uid,
@@ -826,6 +837,7 @@ with tab_main:
                     for idx, f in enumerate(files):
                         img_bytes = f.read()
                         uid = hashlib.md5(img_bytes).hexdigest()[:12]
+                        log_receipt_debug(uid=uid, image_bytes=img_bytes, filename=f.name)
                         
                         # === 優化：在批次處理中加入延遲，避免 Rate Limit ===
                         if idx > 0:  # 第一張不用等
@@ -836,8 +848,6 @@ with tab_main:
                         if res:
                             log_receipt_debug(
                                 uid=uid,
-                                image_bytes=img_bytes,
-                                filename=f.name,
                                 ai_output=res,
                             )
                             # 防呆：再做一次容錯轉換，降低「格式異常」略過率
