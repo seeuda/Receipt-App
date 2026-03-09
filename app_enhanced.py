@@ -9,6 +9,7 @@ import google.generativeai as genai
 from PIL import Image
 import base64
 import re
+from pathlib import Path
 
 # ==========================================
 # I. 基礎設施與配置自動化
@@ -17,6 +18,73 @@ import re
 REGISTRY_ID = "1rPQlGHtvx6M630vnZ_FANMRyR_EnMrzje85V3mZ2H0M"
 TEMPLATE_URL = "https://docs.google.com/spreadsheets/d/15kD4ZMYEZvN3unbIhkH8b69KAVpiiKP-TA4q3pYJ86k/edit"
 PREFERRED_MODELS = ["models/gemini-2.5-flash-lite", "models/gemini-2.5-flash"]
+LOG_ROOT = Path("logs")
+
+
+def ensure_log_dirs():
+    """建立 debug logs 目錄結構。"""
+    try:
+        (LOG_ROOT / "image").mkdir(parents=True, exist_ok=True)
+        (LOG_ROOT / "events").mkdir(parents=True, exist_ok=True)
+        return True
+    except Exception:
+        return False
+
+
+def _json_default(value):
+    if isinstance(value, (datetime,)):
+        return value.isoformat()
+    return str(value)
+
+
+def append_event_log(event_type, payload):
+    """將事件以 JSONL 方式寫入 logs/events。"""
+    try:
+        if not ensure_log_dirs():
+            return False
+        now = datetime.now()
+        log_file = LOG_ROOT / "events" / f"{now.strftime('%Y-%m-%d')}.jsonl"
+        record = {
+            "timestamp": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "event_type": event_type,
+            "payload": payload,
+        }
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False, default=_json_default) + "\n")
+        return True
+    except Exception:
+        return False
+
+
+def log_receipt_debug(uid, image_bytes=None, filename="receipt.bin", ai_output=None, final_output=None):
+    """針對單張收據落地 image / AI output / final output。"""
+    try:
+        ext = Path(filename).suffix.lower() or ".bin"
+        safe_ext = ext if re.fullmatch(r"\.[a-z0-9]+", ext) else ".bin"
+        if image_bytes and ensure_log_dirs():
+            image_path = LOG_ROOT / "image" / f"{uid}{safe_ext}"
+            if not image_path.exists():
+                image_path.write_bytes(image_bytes)
+    except Exception:
+        pass
+
+    if ai_output is not None:
+        append_event_log("ai_output", {"uid": uid, "data": ai_output})
+    if final_output is not None:
+        append_event_log("final_output", {"uid": uid, "data": final_output})
+
+
+def log_sheet_row(uid, row_values, action, rownum=None):
+    """記錄寫入 Google Sheet 的 row payload。"""
+    return append_event_log(
+        "sheet_row",
+        {
+            "uid": uid,
+            "action": action,
+            "rownum": rownum,
+            "row_values": row_values,
+        },
+    )
 
 def extract_json_payload(text):
     """盡量從模型輸出文字中萃取 JSON（dict 或 list）。"""
@@ -768,6 +836,8 @@ with tab_main:
                     images = {}
                     for idx, f in enumerate(files):
                         img_bytes = f.read()
+                        uid = hashlib.md5(img_bytes).hexdigest()[:12]
+                        log_receipt_debug(uid=uid, image_bytes=img_bytes, filename=f.name)
                         
                         # === 優化：在批次處理中加入延遲，避免 Rate Limit ===
                         if idx > 0:  # 第一張不用等
@@ -776,6 +846,10 @@ with tab_main:
                         
                         res = run_vlm_scan(active_key, img_bytes, target_year, target_country)
                         if res:
+                            log_receipt_debug(
+                                uid=uid,
+                                ai_output=res,
+                            )
                             # 防呆：再做一次容錯轉換，降低「格式異常」略過率
                             res = coerce_vlm_result(res, fallback_currency=target_country.get('currency'))
                             if not res:
@@ -788,9 +862,6 @@ with tab_main:
                                 st.warning(f"⚠️ 第 {idx+1} 張辨識欄位不完整，已略過。")
                                 continue
 
-                            # UID 只依據圖片內容，允許同一張單據重傳覆蓋
-                            uid = hashlib.md5(img_bytes).hexdigest()[:12]
-                            
                             # 確保日期格式正確
                             raw_date = res.get('date')
                             receipt_date = normalize_receipt_date(raw_date, fallback_year=target_year)
@@ -816,7 +887,7 @@ with tab_main:
 
                             twd_amount = round(amount_value * exchange_rate, 0)
                             
-                            batch.append({
+                            final_record = {
                                 "UID": uid,
                                 "商店名稱": res['shop'],
                                 "日期": receipt_date,  # 使用驗證過的日期
@@ -829,7 +900,9 @@ with tab_main:
                                 "品項摘要": normalize_items(res.get('items', '無')),  # 使用 normalize_items 處理
                                 "備註": "",
                                 "支付方式": payment_method  # 加入支付方式
-                            })
+                            }
+                            batch.append(final_record)
+                            log_receipt_debug(uid=uid, final_output=final_record)
                             
                             # 儲存圖片
                             images[uid] = base64.b64encode(img_bytes).decode()
@@ -1086,13 +1159,16 @@ with tab_main:
                         if uid in uid_to_row:
                             # UID 已存在 → 覆蓋該列的 A~L 欄（保留 M 欄 UID）
                             rownum = uid_to_row[uid]
+                            log_sheet_row(uid=uid, row_values=row_values_A_to_L, action="update", rownum=rownum)
                             updates.append({
                                 "range": f"A{rownum}:L{rownum}",
                                 "values": [row_values_A_to_L]
                             })
                         else:
                             # UID 不存在 → 新增一列（包含 UID）
-                            rows_to_append.append(row_values_A_to_L + [uid])
+                            append_row = row_values_A_to_L + [uid]
+                            log_sheet_row(uid=uid, row_values=append_row, action="append")
+                            rows_to_append.append(append_row)
 
                     # === 批次寫入（降低 API call、避免中途半套）===
                     if updates:
