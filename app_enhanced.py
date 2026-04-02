@@ -706,6 +706,9 @@ with st.sidebar:
     
     # 專案選擇
     sel_p_name = st.selectbox("🎯 選擇執行專案", list(project_dict.keys()) + ["+ 註冊新專案"])
+    if sel_p_name != "+ 註冊新專案" and sel_p_name in project_dict:
+        project_sheet_url = f"https://docs.google.com/spreadsheets/d/{project_dict[sel_p_name]}/edit"
+        st.link_button("📂 目前專案試算表", project_sheet_url, use_container_width=True)
     
     st.divider()
     

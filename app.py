@@ -174,6 +174,7 @@ def main():
         st.header("🏢 專案選擇")
         if registry:
             sel_p = st.selectbox("請選擇執行專案", list(registry.keys())); tid = registry[sel_p]
+            st.link_button("📂 目前專案試算表", f"https://docs.google.com/spreadsheets/d/{tid}/edit", use_container_width=True)
             try:
                 gc = get_gspread_client(); sh = gc.open_by_key(tid); wks = sh.worksheet("人員名單")
                 u_l = [n for n in wks.col_values(1)[1:] if n.strip()]
