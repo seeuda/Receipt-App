@@ -609,6 +609,12 @@ def plan_sync_actions(records, uid_to_row, force_append_mode, salt):
         })
     return planned
 
+def build_stage_fingerprint(records):
+    """用暫存區 UID 生成指紋，用於防止重複同步造成重複列。"""
+    uid_list = sorted(str(r.get("UID", "")).strip() for r in records)
+    raw = "|".join(uid_list)
+    return hashlib.md5(raw.encode("utf-8")).hexdigest()
+
 @st.cache_data(ttl=60)
 def load_bootstrap_data():
     gc = get_gc()
@@ -1171,7 +1177,7 @@ with tab_main:
         st.divider()
         force_append_mode = st.checkbox(
             "🆕 新批次強制新增（不覆蓋舊列）",
-            value=True,
+            value=False,
             help="開啟後：若 UID 已存在雲端，會自動改發新 UID 以新增新列，而不是更新舊列。"
         )
         diagnostic_mode = st.checkbox(
@@ -1216,6 +1222,16 @@ with tab_main:
         if st.button("📤 同步至雲端", type="secondary", use_container_width=True):
             with st.spinner("同步 A-M 欄位中..."):
                 try:
+                    effective_force_append = force_append_mode
+                    current_fingerprint = build_stage_fingerprint(st.session_state['data'])
+                    if (
+                        force_append_mode
+                        and st.session_state.get("last_synced_fingerprint") == current_fingerprint
+                        and st.session_state.get("last_sync_used_force_append", False)
+                    ):
+                        effective_force_append = False
+                        st.warning("⚠️ 偵測到與上次同步相同的暫存資料；已暫時改用更新模式避免重複新增。")
+
                     gc = get_gc()
                     wks = gc.open_by_key(tid).get_worksheet(0)
                     before_cols, after_cols = ensure_min_sheet_columns(wks, required_cols=13)
@@ -1234,7 +1250,7 @@ with tab_main:
 
                     updates = []         # 要覆蓋的 A~L
                     rows_to_append = []  # 要新增的 A~M
-                    sync_plans = plan_sync_actions(st.session_state['data'], uid_to_row, force_append_mode, now)
+                    sync_plans = plan_sync_actions(st.session_state['data'], uid_to_row, effective_force_append, now)
 
                     # === 逐筆判斷 upsert（先收集，後批次寫入）===
                     for r, plan in zip(st.session_state['data'], sync_plans):
@@ -1288,6 +1304,8 @@ with tab_main:
                         msg.append(f"新增 {appended_count} 筆")
 
                     st.success(f"✅ 同步完成！{' / '.join(msg)}")
+                    st.session_state["last_synced_fingerprint"] = current_fingerprint
+                    st.session_state["last_sync_used_force_append"] = effective_force_append
                     
                     # 同步成功後提示，但不自動清空（讓使用者決定）
                     st.info("💡 同步完成後，暫存區資料仍保留。如需清空，請點擊下方按鈕。")
