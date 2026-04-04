@@ -31,6 +31,12 @@ def get_gspread_client():
     )
     return gspread.authorize(creds)
 
+def ensure_min_sheet_columns(wks, required_cols=13):
+    """避免同步到 A~M 時，因目標工作表欄數不足而失敗。"""
+    current_cols = int(getattr(wks, "col_count", 0) or 0)
+    if current_cols < required_cols:
+        wks.add_cols(required_cols - current_cols)
+
 @st.cache_data(ttl=3600)
 def get_rate_by_date(currency_code: str, target_date: datetime.date) -> float:
     if currency_code == "TWD": return 1.0
@@ -150,6 +156,7 @@ def extract_structured_data(text: str, params: Dict, target_year: int) -> Tuple[
 def sync_to_sheets(df: pd.DataFrame, u_n: str, c_c: str, tid: str, fee_rate: float) -> Tuple[int, int]:
     try:
         gc = get_gspread_client(); sh = gc.open_by_key(tid); wks = sh.get_worksheet(0)
+        ensure_min_sheet_columns(wks, required_cols=13)
         uids = wks.col_values(13); now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         to_app, upd_count = [], 0
         for _, r in df.iterrows():

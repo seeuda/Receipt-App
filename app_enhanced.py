@@ -564,6 +564,57 @@ def get_gc():
         st.error(f"❌ GCP 授權失敗: {e}")
         return None
 
+def ensure_min_sheet_columns(wks, required_cols=13):
+    """
+    確保目標工作表至少有 required_cols 欄。
+    避免同步 A~M 時遇到「有效欄位數被鎖定 / 欄數不足」錯誤。
+    """
+    current_cols = int(getattr(wks, "col_count", 0) or 0)
+    if current_cols < required_cols:
+        wks.add_cols(required_cols - current_cols)
+        return current_cols, required_cols
+    return current_cols, current_cols
+
+def build_receipt_uid(image_bytes: bytes, batch_salt: str) -> str:
+    """
+    產生「批次內穩定、跨批次唯一」的 UID：
+    - 同一次辨識批次可穩定去重
+    - 不同批次（即使同一張圖）也不會覆蓋舊列
+    """
+    content_hash = hashlib.md5(image_bytes).hexdigest()
+    return hashlib.md5(f"{content_hash}:{batch_salt}".encode()).hexdigest()[:20]
+
+def plan_sync_actions(records, uid_to_row, force_append_mode, salt):
+    """根據 UID 與同步模式，先規劃每筆資料要 update 還是 append。"""
+    planned = []
+    for record in records:
+        source_uid = str(record.get("UID", "")).strip()
+        final_uid = source_uid
+        rownum = None
+
+        if source_uid in uid_to_row and force_append_mode:
+            action = "append_forced"
+            final_uid = build_receipt_uid(source_uid.encode("utf-8"), salt)
+        elif source_uid in uid_to_row:
+            action = "update"
+            rownum = uid_to_row[source_uid]
+        else:
+            action = "append"
+
+        planned.append({
+            "source_uid": source_uid,
+            "final_uid": final_uid,
+            "action": action,
+            "rownum": rownum
+        })
+    return planned
+
+def build_stage_fingerprint(records):
+    """用暫存區 UID 生成指紋，用於防止重複同步造成重複列。"""
+    uid_list = sorted(str(r.get("UID", "")).strip() for r in records)
+    raw = "|".join(uid_list)
+    return hashlib.md5(raw.encode("utf-8")).hexdigest()
+
 @st.cache_data(ttl=60)
 def load_bootstrap_data():
     gc = get_gc()
@@ -833,13 +884,14 @@ with tab_main:
             if not active_key: 
                 st.error("❌ 尚未取得 API 授權。")
             elif files:
+                batch_salt = datetime.now().strftime("%Y%m%d%H%M%S%f")
                 st.session_state['vlm_error'] = None
                 with st.spinner(f"正在對 {target_country['name']} 收據進行 VLM 分析..."):
                     batch = []
                     images = {}
                     for idx, f in enumerate(files):
                         img_bytes = f.read()
-                        uid = hashlib.md5(img_bytes).hexdigest()[:12]
+                        uid = build_receipt_uid(img_bytes, batch_salt)
                         log_receipt_debug(uid=uid, image_bytes=img_bytes, filename=f.name)
                         
                         # === 優化：在批次處理中加入延遲，避免 Rate Limit ===
@@ -1123,13 +1175,68 @@ with tab_main:
                             st.rerun()
         
         st.divider()
+        force_append_mode = st.checkbox(
+            "🆕 新批次強制新增（不覆蓋舊列）",
+            value=False,
+            help="開啟後：若 UID 已存在雲端，會自動改發新 UID 以新增新列，而不是更新舊列。"
+        )
+        diagnostic_mode = st.checkbox(
+            "🧪 同步診斷模式（顯示每筆 UID 決策）",
+            value=False
+        )
+
+        if st.button("🔍 預覽同步結果", use_container_width=True):
+            try:
+                gc = get_gc()
+                wks = gc.open_by_key(tid).get_worksheet(0)
+                all_rows = wks.get_all_values()
+                uid_to_row = {}
+                for row_idx, row in enumerate(all_rows, start=1):
+                    uid = str(row[12]).strip() if len(row) >= 13 else ""
+                    if uid:
+                        uid_to_row[uid] = row_idx
+
+                preview_salt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                plans = plan_sync_actions(st.session_state['data'], uid_to_row, force_append_mode, preview_salt)
+
+                update_count = sum(1 for p in plans if p["action"] == "update")
+                append_count = sum(1 for p in plans if p["action"] in ("append", "append_forced"))
+                forced_count = sum(1 for p in plans if p["action"] == "append_forced")
+                st.info(f"📊 預覽：更新 {update_count} 筆 / 新增 {append_count} 筆（其中強制新增 {forced_count} 筆）")
+
+                if diagnostic_mode and plans:
+                    view_rows = []
+                    for i, p in enumerate(plans, start=1):
+                        view_rows.append({
+                            "#": i,
+                            "決策": p["action"],
+                            "原始 UID": p["source_uid"],
+                            "最終 UID": p["final_uid"],
+                            "更新列號": p["rownum"] or ""
+                        })
+                    st.dataframe(pd.DataFrame(view_rows), use_container_width=True, hide_index=True)
+            except Exception as e:
+                st.error(f"預覽失敗: {e}")
         
         # 同步按鈕
         if st.button("📤 同步至雲端", type="secondary", use_container_width=True):
             with st.spinner("同步 A-M 欄位中..."):
                 try:
+                    effective_force_append = force_append_mode
+                    current_fingerprint = build_stage_fingerprint(st.session_state['data'])
+                    if (
+                        force_append_mode
+                        and st.session_state.get("last_synced_fingerprint") == current_fingerprint
+                        and st.session_state.get("last_sync_used_force_append", False)
+                    ):
+                        effective_force_append = False
+                        st.warning("⚠️ 偵測到與上次同步相同的暫存資料；已暫時改用更新模式避免重複新增。")
+
                     gc = get_gc()
                     wks = gc.open_by_key(tid).get_worksheet(0)
+                    before_cols, after_cols = ensure_min_sheet_columns(wks, required_cols=13)
+                    if after_cols > before_cols:
+                        st.info(f"ℹ️ 偵測到工作表僅有 {before_cols} 欄，已自動擴充為 {after_cols} 欄後再同步。")
         
                     # === 建立 雲端 UID -> 列號 對照表 ===
                     all_rows = wks.get_all_values()
@@ -1143,10 +1250,11 @@ with tab_main:
 
                     updates = []         # 要覆蓋的 A~L
                     rows_to_append = []  # 要新增的 A~M
+                    sync_plans = plan_sync_actions(st.session_state['data'], uid_to_row, effective_force_append, now)
 
                     # === 逐筆判斷 upsert（先收集，後批次寫入）===
-                    for r in st.session_state['data']:
-                        uid = str(r['UID']).strip()
+                    for r, plan in zip(st.session_state['data'], sync_plans):
+                        uid = plan["final_uid"]
 
                         t_base = int(r['台幣金額'])
                         t_total = round(t_base * (1 + fee_rate), 0)
@@ -1159,9 +1267,9 @@ with tab_main:
                             t_base, t_total - t_base, t_total, r['備註']
                         ]
 
-                        if uid in uid_to_row:
+                        if plan["action"] == "update":
                             # UID 已存在 → 覆蓋該列的 A~L 欄（保留 M 欄 UID）
-                            rownum = uid_to_row[uid]
+                            rownum = plan["rownum"]
                             log_sheet_row(uid=uid, row_values=row_values_A_to_L, action="update", rownum=rownum)
                             updates.append({
                                 "range": f"A{rownum}:L{rownum}",
@@ -1196,6 +1304,8 @@ with tab_main:
                         msg.append(f"新增 {appended_count} 筆")
 
                     st.success(f"✅ 同步完成！{' / '.join(msg)}")
+                    st.session_state["last_synced_fingerprint"] = current_fingerprint
+                    st.session_state["last_sync_used_force_append"] = effective_force_append
                     
                     # 同步成功後提示，但不自動清空（讓使用者決定）
                     st.info("💡 同步完成後，暫存區資料仍保留。如需清空，請點擊下方按鈕。")
