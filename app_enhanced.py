@@ -760,6 +760,8 @@ st.set_page_config(page_title="考察支出登錄系統 v4.9.0", layout="wide")
 if 'data' not in st.session_state: st.session_state['data'] = []
 if 'vlm_error' not in st.session_state: st.session_state['vlm_error'] = None
 if 'uploaded_images' not in st.session_state: st.session_state['uploaded_images'] = {}
+if 'force_append_mode' not in st.session_state: st.session_state['force_append_mode'] = False
+if 'diagnostic_mode' not in st.session_state: st.session_state['diagnostic_mode'] = False
 
 # 載入外部參數與註冊資訊
 admin_pwd, project_dict, c_master = load_bootstrap_data()
@@ -811,6 +813,18 @@ with st.sidebar:
         if 'uploader_key' in st.session_state:
             st.session_state['uploader_key'] += 1  # 重置檔案上傳器
         st.rerun()
+
+    st.divider()
+    st.subheader("⚙️ 進階同步選項")
+    st.session_state['force_append_mode'] = st.checkbox(
+        "🆕 新批次強制新增（不覆蓋舊列）",
+        value=st.session_state['force_append_mode'],
+        help="開啟後：若 UID 已存在雲端，會自動改發新 UID 以新增新列，而不是更新舊列。"
+    )
+    st.session_state['diagnostic_mode'] = st.checkbox(
+        "🧪 同步診斷模式（顯示每筆 UID 決策）",
+        value=st.session_state['diagnostic_mode']
+    )
 
 # --- 主畫面頁籤 ---
 tab_main, tab_reg = st.tabs(["🚀 辨識同步任務", "🆕 專案快速註冊"])
@@ -1189,15 +1203,8 @@ with tab_main:
                             st.rerun()
         
         st.divider()
-        force_append_mode = st.checkbox(
-            "🆕 新批次強制新增（不覆蓋舊列）",
-            value=False,
-            help="開啟後：若 UID 已存在雲端，會自動改發新 UID 以新增新列，而不是更新舊列。"
-        )
-        diagnostic_mode = st.checkbox(
-            "🧪 同步診斷模式（顯示每筆 UID 決策）",
-            value=False
-        )
+        force_append_mode = st.session_state.get('force_append_mode', False)
+        diagnostic_mode = st.session_state.get('diagnostic_mode', False)
 
         if st.button("🔍 預覽同步結果", use_container_width=True):
             try:
