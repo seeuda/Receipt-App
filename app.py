@@ -60,7 +60,17 @@ def load_project_registry() -> Dict[str, str]:
         k_n = next((h for h in headers if "專案名稱" in h), "專案名稱")
         k_i = next((h for h in headers if "試算表 ID" in h), "試算表 ID")
         k_s = next((h for h in headers if "啟用狀態" in h), "啟用狀態")
-        return {r[k_n]: r[k_i] for r in data if str(r.get(k_s, "")).strip().upper() == "TRUE"}
+        registry = {}
+        for row in data:
+            if str(row.get(k_s, "")).strip().upper() != "TRUE":
+                continue
+            name = str(row.get(k_n, "")).strip()
+            sheet_id = str(row.get(k_i, "")).strip()
+            if not name or not sheet_id:
+                continue
+            # 保留最早註冊的專案，避免同名後註冊覆蓋舊 ID
+            registry.setdefault(name, sheet_id)
+        return registry
     except Exception: return {}
 
 def add_project_to_registry(name: str, sheet_id: str) -> bool:
@@ -70,7 +80,9 @@ def add_project_to_registry(name: str, sheet_id: str) -> bool:
         idx_n = h.index(next(x for x in h if "專案名稱" in x))
         idx_i = h.index(next(x for x in h if "試算表 ID" in x))
         idx_s = h.index(next(x for x in h if "啟用狀態" in x))
-        if sheet_id in wks.col_values(idx_i + 1): return False
+        exist_names = [str(v).strip() for v in wks.col_values(idx_n + 1)[1:]]
+        exist_ids = [str(v).strip() for v in wks.col_values(idx_i + 1)[1:]]
+        if name.strip() in exist_names or sheet_id.strip() in exist_ids: return False
         new_row = [""] * len(h)
         new_row[idx_n], new_row[idx_i], new_row[idx_s] = name, sheet_id, "TRUE"
         if h[0] in ["時間戳記", "Timestamp"]: new_row[0] = datetime.now().strftime("%Y/%m/%d %H:%M:%S")

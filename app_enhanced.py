@@ -629,7 +629,16 @@ def load_bootstrap_data():
         sh = gc.open_by_key(REGISTRY_ID)
         pwd = str(sh.worksheet("Auth").acell('A1').value).strip()
         recs = sh.get_worksheet(0).get_all_records()
-        valid_p = {r["專案名稱"]: r["試算表 ID"] for r in recs if str(r.get("啟用狀態(請選TRUE)", "")).upper() == "TRUE"}
+        valid_p = {}
+        for row in recs:
+            if str(row.get("啟用狀態(請選TRUE)", "")).strip().upper() != "TRUE":
+                continue
+            name = str(row.get("專案名稱", "")).strip()
+            sheet_id = str(row.get("試算表 ID", "")).strip()
+            if not name or not sheet_id:
+                continue
+            # 保留最早註冊資料，避免同名專案覆蓋舊 ID
+            valid_p.setdefault(name, sheet_id)
         with open("countries_master.json", "r", encoding="utf-8") as f:
             c_master = json.load(f)
         return pwd, valid_p, c_master
@@ -1339,7 +1348,19 @@ with tab_reg:
     if st.button("✅ 提交註冊", use_container_width=True):
         if rn and rid:
             try:
-                get_gc().open_by_key(REGISTRY_ID).get_worksheet(0).append_row([datetime.now().strftime("%Y/%m/%d %H:%M"), rn, rid, "TRUE"])
-                st.success("註冊成功！")
+                registry_wks = get_gc().open_by_key(REGISTRY_ID).get_worksheet(0)
+                headers = registry_wks.row_values(1)
+                idx_name = headers.index(next(h for h in headers if "專案名稱" in h))
+                idx_id = headers.index(next(h for h in headers if "試算表 ID" in h))
+                names = [str(v).strip() for v in registry_wks.col_values(idx_name + 1)[1:]]
+                ids = [str(v).strip() for v in registry_wks.col_values(idx_id + 1)[1:]]
+
+                if rn.strip() in names:
+                    st.error("此專案名稱已存在，請使用不同名稱。")
+                elif rid.strip() in ids:
+                    st.error("此試算表 ID 已被註冊。")
+                else:
+                    registry_wks.append_row([datetime.now().strftime("%Y/%m/%d %H:%M"), rn, rid, "TRUE"])
+                    st.success("註冊成功！")
             except Exception as e:
                 st.error(f"失敗: {e}")
