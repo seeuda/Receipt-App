@@ -575,14 +575,20 @@ def ensure_min_sheet_columns(wks, required_cols=13):
         return current_cols, required_cols
     return current_cols, current_cols
 
-def build_receipt_uid(image_bytes: bytes, batch_salt: str) -> str:
+def build_receipt_uid(image_bytes: bytes) -> str:
     """
-    產生「批次內穩定、跨批次唯一」的 UID：
-    - 同一次辨識批次可穩定去重
-    - 不同批次（即使同一張圖）也不會覆蓋舊列
+    以圖片內容產生「跨批次穩定」UID。
+    同一張圖片（byte 完全一致）在不同時間上傳都會得到相同 UID，
+    以便同步時正確對應到既有列而不是重複新增。
     """
-    content_hash = hashlib.md5(image_bytes).hexdigest()
-    return hashlib.md5(f"{content_hash}:{batch_salt}".encode()).hexdigest()[:20]
+    return hashlib.md5(image_bytes).hexdigest()[:20]
+
+def build_forced_append_uid(source_uid: str, salt: str) -> str:
+    """
+    強制新增模式專用 UID：
+    當來源 UID 已存在雲端時，透過鹽值衍生新 UID，避免覆蓋舊資料。
+    """
+    return hashlib.md5(f"{source_uid}:{salt}".encode()).hexdigest()[:20]
 
 def plan_sync_actions(records, uid_to_row, force_append_mode, salt):
     """根據 UID 與同步模式，先規劃每筆資料要 update 還是 append。"""
@@ -594,7 +600,7 @@ def plan_sync_actions(records, uid_to_row, force_append_mode, salt):
 
         if source_uid in uid_to_row and force_append_mode:
             action = "append_forced"
-            final_uid = build_receipt_uid(source_uid.encode("utf-8"), salt)
+            final_uid = build_forced_append_uid(source_uid, salt)
         elif source_uid in uid_to_row:
             action = "update"
             rownum = uid_to_row[source_uid]
@@ -884,14 +890,13 @@ with tab_main:
             if not active_key: 
                 st.error("❌ 尚未取得 API 授權。")
             elif files:
-                batch_salt = datetime.now().strftime("%Y%m%d%H%M%S%f")
                 st.session_state['vlm_error'] = None
                 with st.spinner(f"正在對 {target_country['name']} 收據進行 VLM 分析..."):
                     batch = []
                     images = {}
                     for idx, f in enumerate(files):
                         img_bytes = f.read()
-                        uid = build_receipt_uid(img_bytes, batch_salt)
+                        uid = build_receipt_uid(img_bytes)
                         log_receipt_debug(uid=uid, image_bytes=img_bytes, filename=f.name)
                         
                         # === 優化：在批次處理中加入延遲，避免 Rate Limit ===
