@@ -754,7 +754,7 @@ Date rules: use transaction/invoice date only; ignore service period/date range 
 # III. UI 佈局 (MVC 架構)
 # ==========================================
 
-st.set_page_config(page_title="考察支出登錄系統 v4.9.0", layout="wide")
+st.set_page_config(page_title="考察支出登錄系統 v4.10.1", layout="wide")
 
 # 初始化 Session 狀態
 if 'data' not in st.session_state: st.session_state['data'] = []
