@@ -1,3 +1,10 @@
+"""
+Deprecated module.
+
+此檔案已停止維護，僅保留作為歷史版本參考。
+目前請改用 `app_enhanced.py` 作為正式維運版本。
+"""
+
 # Base Indent: 0 spaces
 import streamlit as st
 import pandas as pd
@@ -31,6 +38,12 @@ def get_gspread_client():
     )
     return gspread.authorize(creds)
 
+def ensure_min_sheet_columns(wks, required_cols=13):
+    """避免同步到 A~M 時，因目標工作表欄數不足而失敗。"""
+    current_cols = int(getattr(wks, "col_count", 0) or 0)
+    if current_cols < required_cols:
+        wks.add_cols(required_cols - current_cols)
+
 @st.cache_data(ttl=3600)
 def get_rate_by_date(currency_code: str, target_date: datetime.date) -> float:
     if currency_code == "TWD": return 1.0
@@ -54,7 +67,17 @@ def load_project_registry() -> Dict[str, str]:
         k_n = next((h for h in headers if "專案名稱" in h), "專案名稱")
         k_i = next((h for h in headers if "試算表 ID" in h), "試算表 ID")
         k_s = next((h for h in headers if "啟用狀態" in h), "啟用狀態")
-        return {r[k_n]: r[k_i] for r in data if str(r.get(k_s, "")).strip().upper() == "TRUE"}
+        registry = {}
+        for row in data:
+            if str(row.get(k_s, "")).strip().upper() != "TRUE":
+                continue
+            name = str(row.get(k_n, "")).strip()
+            sheet_id = str(row.get(k_i, "")).strip()
+            if not name or not sheet_id:
+                continue
+            # 保留最早註冊的專案，避免同名後註冊覆蓋舊 ID
+            registry.setdefault(name, sheet_id)
+        return registry
     except Exception: return {}
 
 def add_project_to_registry(name: str, sheet_id: str) -> bool:
@@ -64,7 +87,9 @@ def add_project_to_registry(name: str, sheet_id: str) -> bool:
         idx_n = h.index(next(x for x in h if "專案名稱" in x))
         idx_i = h.index(next(x for x in h if "試算表 ID" in x))
         idx_s = h.index(next(x for x in h if "啟用狀態" in x))
-        if sheet_id in wks.col_values(idx_i + 1): return False
+        exist_names = [str(v).strip() for v in wks.col_values(idx_n + 1)[1:]]
+        exist_ids = [str(v).strip() for v in wks.col_values(idx_i + 1)[1:]]
+        if name.strip() in exist_names or sheet_id.strip() in exist_ids: return False
         new_row = [""] * len(h)
         new_row[idx_n], new_row[idx_i], new_row[idx_s] = name, sheet_id, "TRUE"
         if h[0] in ["時間戳記", "Timestamp"]: new_row[0] = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
@@ -150,6 +175,7 @@ def extract_structured_data(text: str, params: Dict, target_year: int) -> Tuple[
 def sync_to_sheets(df: pd.DataFrame, u_n: str, c_c: str, tid: str, fee_rate: float) -> Tuple[int, int]:
     try:
         gc = get_gspread_client(); sh = gc.open_by_key(tid); wks = sh.get_worksheet(0)
+        ensure_min_sheet_columns(wks, required_cols=13)
         uids = wks.col_values(13); now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         to_app, upd_count = [], 0
         for _, r in df.iterrows():
@@ -167,6 +193,7 @@ def sync_to_sheets(df: pd.DataFrame, u_n: str, c_c: str, tid: str, fee_rate: flo
 
 def main():
     st.set_page_config(page_title="考察支出登錄系統", layout="wide"); init_session()
+    st.warning("⚠️ app.py 已停止維護（Deprecated）。請改用 app_enhanced.py。")
     all_cfg = load_all_configs(); registry = load_project_registry()
 
     with st.sidebar:
@@ -174,6 +201,7 @@ def main():
         st.header("🏢 專案選擇")
         if registry:
             sel_p = st.selectbox("請選擇執行專案", list(registry.keys())); tid = registry[sel_p]
+            st.link_button("📂 目前專案試算表", f"https://docs.google.com/spreadsheets/d/{tid}/edit", use_container_width=True)
             try:
                 gc = get_gspread_client(); sh = gc.open_by_key(tid); wks = sh.worksheet("人員名單")
                 u_l = [n for n in wks.col_values(1)[1:] if n.strip()]
