@@ -3,9 +3,10 @@
 Receipt-App 是一套以 **Streamlit + Google 生態系 API** 打造的收據登錄工具，協助使用者將海外收據快速完成：
 **OCR / VLM 辨識 → 人工校對 → 匯率換算 → 寫入 Google Sheets**。
 
-目前專案提供兩個可用版本：
-- `app.py`：穩定版（Google Vision OCR 流程）
-- `app_enhanced.py`：增強版（Gemini VLM + Token 優化）
+目前專案主線版本為：
+- `app_enhanced.py`：**唯一維運版本**（Gemini VLM + Token 優化 + 同步診斷）
+
+`app.py` 已進入封存狀態（Deprecated），不再提供功能更新或相容性維護。
 
 ---
 
@@ -24,15 +25,15 @@ Receipt-App 是一套以 **Streamlit + Google 生態系 API** 打造的收據登
 
 ```text
 .
-├── app.py                        # 穩定版：Google Vision OCR 主流程
-├── app_enhanced.py               # 增強版：Gemini VLM + API 預檢 + Token 優化
+├── app.py                        # 舊版封存（Deprecated，不維運）
+├── app_enhanced.py               # 主線版本：Gemini VLM + API 預檢 + Token 優化
 ├── countries_master.json         # 國家/區域/幣別等主資料
 ├── requirements.txt              # Python 套件依賴
 ├── .streamlit/secrets.toml.example # Secrets 範本（可提交）
 ├── .gitignore                    # 忽略本機 secrets 與暫存檔
 ├── TESTING.md                    # 測試建議與案例
 ├── QUICKSTART.md                 # 精簡啟動說明
-└── 版本更新說明文件（V4.8.0~V4.9.2）
+└── 版本更新說明文件（V4.8.0~V4.10.1）
 ```
 
 ## Debug Logs（新增）
@@ -52,7 +53,7 @@ Receipt-App 是一套以 **Streamlit + Google 生態系 API** 打造的收據登
 ## 執行前準備
 
 1. **Python 3.10+**
-2. 建立 Google Cloud 專案並啟用相關 API（至少含 Sheets；若使用 `app.py` 則需 Vision）
+2. 建立 Google Cloud 專案並啟用相關 API（至少含 Sheets；主線 `app_enhanced.py` 需 Gemini API）
 3. 準備 Service Account JSON 金鑰
 4. （若使用 `app_enhanced.py`）準備 Gemini API Key
 
@@ -99,17 +100,13 @@ universe_domain = "googleapis.com"
 
 ## 啟動方式
 
-### 穩定版（Google Vision OCR）
-
-```bash
-streamlit run app.py
-```
-
-### 增強版（Gemini VLM）
+### 主線版（Gemini VLM）
 
 ```bash
 streamlit run app_enhanced.py
 ```
+
+> `app.py` 已停止維護，僅作歷史參考用途。
 
 ---
 
@@ -130,6 +127,10 @@ streamlit run app_enhanced.py
 - `V4.9.0_OPTIMIZATION.md`
 - `V4.9.1_UPDATE.md`
 - `V4.9.2_TOKEN_OPTIMIZATION.md`
+- `V4.9.3_BUGFIX.md`
+- `V4.9.4_UID_FIX.md`
+- `V4.10.0_PAYMENT_METHOD.md`
+- `V4.10.1_UPDATE_SUMMARY.txt`
 - `MODEL_UPDATE_GUIDE.md`
 - `GEMINI_API_FIX.md`
 

@@ -1,3 +1,10 @@
+"""
+Deprecated module.
+
+此檔案已停止維護，僅保留作為歷史版本參考。
+目前請改用 `app_enhanced.py` 作為正式維運版本。
+"""
+
 # Base Indent: 0 spaces
 import streamlit as st
 import pandas as pd
@@ -186,6 +193,7 @@ def sync_to_sheets(df: pd.DataFrame, u_n: str, c_c: str, tid: str, fee_rate: flo
 
 def main():
     st.set_page_config(page_title="考察支出登錄系統", layout="wide"); init_session()
+    st.warning("⚠️ app.py 已停止維護（Deprecated）。請改用 app_enhanced.py。")
     all_cfg = load_all_configs(); registry = load_project_registry()
 
     with st.sidebar:
