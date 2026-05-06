@@ -876,7 +876,7 @@ with tab_main:
                 # 現金模式：提供預設匯率輸入
                 # 使用 session_state 保存，頁面重整前有效
                 if 'default_cash_rate' not in st.session_state:
-                    st.session_state['default_cash_rate'] = 0.0
+                    st.session_state['default_cash_rate'] = 37.61
                 
                 default_rate = st.number_input(
                     "💵 您的現金兌換匯率", 
